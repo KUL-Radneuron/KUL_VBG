@@ -1,6 +1,6 @@
 # KUL_VBG
 A workflow to allow Freesurfer recon-all to run on brain images with large lesions.
-VBG is a bash script tested in Mac OSX, Ubuntu 18.0 and CentOS.
+VBG is a bash script tested in Mac OSX, Ubuntu 18.0 and CentOS. This version of VBG corresponds to the preprint "Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions. Radwan et al., 2020, DOI: https://doi.org/10.1101/2020.09.30.20204701. Full-text preprint available via: https://www.medrxiv.org/content/10.1101/2020.09.30.20204701v1)
 
 Dependencies:
 a) ANTs and ANTsX scripts

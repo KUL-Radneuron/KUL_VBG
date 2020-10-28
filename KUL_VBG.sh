@@ -7,24 +7,13 @@
 
 # this script is in dev for S61759
 
-# v 0.31 - dd 03/08/2020
-
-# just an example if we still need to make it more quiet
-# task="$(task_antsBET >/dev/null 2>&1)";
+# v 0.35 - dd 28/10/2020
 
 
 #####################################
 
 
-## This version is made for single channel validation purposes 
-# it is free of any tampering to add dice calucations or any 
-# quality checks for validation purposes
-# those were add in later versions of this script names confusingly
-# so I just named this v1
-
-
-
-v="0.32"
+v="0.35"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -32,17 +21,10 @@ v="0.32"
 # The main idea is to replace the lesion with a hole and fill the hole with information from the normal hemisphere 
 # maintains subject specificity and diseased hemisphere information but replaces lesion tissue with sham brain 
 # should be followed by a loop calculating overlap between fake labels from sham brain with actual lesion 
-#  To do: # 
-# - This version shall be single channel based and will be used solely for validation
-# - further dev in progress (25/02/2020)
-# - improving brain extraction to improve segmentation - done
-# - changing make images strategy - done
-# - implementing Template use for large unilateral lesions - done
-# - need to modify smoothed masks, so that the center is always 1 and smooth values are only at periphery
-# - need to switch to hd-bet (if I can get it to run on MAC OS X)
+# to do:
+# (1) Add option for FreeSurfer or FastSurfer ;)
 
-
-# Description: (outdated)
+# Description:
 # 1 - Denoise all inputs with ants in native space and save noise maps
 # 2 - N4 bias field correction and save the bias image as bias1
 # 3 - Affine reg T2/FLAIR to T1 
@@ -58,8 +40,7 @@ v="0.32"
 # 13 - Apply warps from step 11 to out_step_10 
 # 14 - replace lesion patch from Atropos2 maps with Atropos1 patches
 # 15 - Run for loop for modalities to populate lesion patch with mean intensity values per tissue type
-# 16 - Add noise and bias (should sprinkle in one more denoising and bias)
-# 17 - run recon-all/antsJLF and calculate the lesion overlap with tissue types, make report, quit.
+# 16 - run recon-all/antsJLF and calculate the lesion overlap with tissue types, make report, quit.
 
 # will generate better RL and priors for the new MNI HRT1 template from FS (running it now 11/08/2019 @ 13:23)
 
@@ -100,11 +81,11 @@ Purpose:
 
 How to use:
 
-    - You need to use the cook_template_4VBG script once for you study - if you have only 1 scanner
+    - You need to use the cook_template_4VBG script once for your study - if you have only 1 scanner
     - cook_template_4VBG requires two brains with unilateral lesions on opposing sides
     - it is meant to facilitate the grafting process and minimize intensity differences
     - You need a high resolution T1 WI and a lesion mask in the same space for VBG to run
-    - If you end up with an empty image, it is possible you have mismatch between the T1 and lesion mask
+    - If you end up with an empty image, it is possible you have a mismatch between the T1 and lesion mask
 
 
 Required arguments:
@@ -121,6 +102,7 @@ Optional arguments:
     -s:  session (of the participant)
     -t:  Use the VBG template to derive the fill patch (if set to 1, template tissue is used alongside native tissue to make the lesion fill)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
+    -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
     -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
     -P:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
@@ -134,6 +116,7 @@ Notes:
     - You can use -b and the script will find your BIDS files automatically
     - If your data is not in BIDS, then use -a without -b
     - This version is for validation only.
+    - In case of trouble with HD-BET see lines 1124 - 1200)
 
 
 
@@ -171,7 +154,7 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:a:l:z:s:o:m:n:bvhtFEP" OPT; do
+    while getopts "p:a:l:z:s:o:m:n:B:bvhtFEP" OPT; do
 
         case $OPT in
         p) #subject
@@ -188,6 +171,10 @@ else
         s) #session
             s_flag=1
             ses=$OPTARG
+        ;;
+        B) #session
+            BET_flag=1
+            BET_m=$OPTARG
         ;;
         l) #lesion_mask
             l_flag=1
@@ -246,6 +233,98 @@ else
 
 fi
 
+lesion_wf="${cwd}/lesion_wf"
+
+# output
+
+if [[ "$o_flag" -eq 1 ]]; then
+	
+    output_m="${out_dir}"
+
+    output_d="${output_m}/sub-${subj}${ses_long}"
+
+else
+
+	output_d="${lesion_wf}/output_LWF/sub-${subj}${ses_long}"
+
+fi
+
+# intermediate folder
+
+if [[ "$m_flag" -eq 1 ]]; then
+
+	preproc_m="${wf_dir}"
+
+    preproc="${preproc_m}/sub-${subj}${ses_long}"
+
+else
+
+	preproc="${lesion_wf}/proc_LWF/sub-${subj}${ses_long}"
+
+fi
+
+
+# timestamp
+start_t=$(date +%s)
+
+FSLPARALLEL=$ncpu; export FSLPARALLEL
+OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
+
+d=$(date "+%Y-%m-%d_%H-%M-%S");
+
+# handle the dirs
+
+cd $cwd
+
+long_bids_subj="${search_sessions}"
+
+echo $long_bids_subj
+
+bids_subj=${long_bids_subj%anat}
+
+echo $bids_subj
+
+# echo $lesion_wf
+
+ROIs="${output_d}/sub-${subj}${ses_long}/ROIs"
+	
+overlap="${output_d}/sub-${subj}${ses_long}/overlap"
+
+#####
+
+# make your dirs
+
+mkdir -p ${preproc_m} >/dev/null 2>&1
+
+mkdir -p ${output_m} >/dev/null 2>&1
+
+mkdir -p ${preproc} >/dev/null 2>&1
+
+mkdir -p ${output_d} >/dev/null 2>&1
+
+mkdir -p ${ROIs} >/dev/null 2>&1
+
+mkdir -p ${overlap} >/dev/null 2>&1
+
+
+# make your log file
+
+prep_log="${preproc}/prep_log_${d}.txt";
+
+if [[ ! -f ${prep_log} ]] ; then
+
+    touch ${prep_log}
+
+else
+
+    echo "${prep_log} already created"
+
+fi
+
+echo " preproc dir is ${preproc} and output dir is ${output_d}"
+echo " preproc dir is ${preproc} and output dir is ${output_d}" >> ${prep_log}
+
+
 # deal with ncpu and itk ncpu
 
 # itk default ncpu for antsRegistration
@@ -278,6 +357,7 @@ else
     else
 	
 	    echo "Inputs are -p  ${subj}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}"
+        echo "Inputs are -p  ${subj}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}" >> ${prep_log}
         
     fi
 	
@@ -305,7 +385,8 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 		if [[ $search_T1 ]]; then
 				
 			T1_orig=$search_T1
-			echo " We found T1 WIs " $T1_orig
+			echo " We found T1 WIs ${T1_orig}"
+            echo " We found T1 WIs ${T1_orig}" >> ${prep_log}
 				
 		else
 				
@@ -346,6 +427,7 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 			T1_orig=$search_T1;
 
 			echo " We found T1 WIs " $T1_orig
+            echo " We found T1 WIs ${T1_orig}" >> ${prep_log}
 			
 		else
 			
@@ -370,6 +452,7 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 		T1_orig=$t1_orig
 
         echo " T1 images provided as ${t1_orig} "
+        echo " We found T1 WIs ${T1_orig}" >> ${prep_log}
 		
     else
 
@@ -388,9 +471,49 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 		
 fi
 
+if [[ -z "${BET_flag}" ]]; then
+
+    echo
+    echo " You have not specified a BET method, ANTsBET will be used by default"
+    echo " You have not specified a BET method, ANTsBET will be used by default" >> ${prep_log}
+    echo
+    BET_m=2
+
+else
+
+    if [[ ${BET_m} -eq 1 ]]; then
+    
+        echo
+        echo " You have specified HD-BET for brain extraction, please make sure it is called correctly from within KUL_VBG"
+        echo " You have specified HD-BET for brain extraction, please make sure it is called correctly from within KUL_VBG" >> ${prep_log}
+        echo " In case of BET problems see lines 1124 - 1200 "
+        echo
+        # BET_m=1
+
+    elif [[ ${BET_m} -eq 2 ]]; then
+
+        echo
+        echo " You have specified ANTs-BET for brain extraction, please make sure it is called correctly from within KUL_VBG"
+        echo " You have specified ANTs-BET for brain extraction, please make sure it is called correctly from within KUL_VBG" >> ${prep_log}
+        echo " In case of BET problems see lines 1124 - 1200 "
+        echo
+        # BET_m=2
+
+    else 
+
+        echo
+        echo " You have specified an incorrect value to the -B option, exiting... "
+        echo " Correct options for the -B flag are 1 for HD-BET or 2 for ANTs-BET"
+        exit 2
+
+    fi
+    
+fi
+
 # set this manually for debugging
 function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
 mrtrix_path=($(which mrmath | rev | cut -d"/" -f3- | rev))
+FS_path1=($(which recon-all | rev | cut -d"/" -f3- | rev))
 
 if [[  -z  ${function_path}  ]]; then
 
@@ -418,14 +541,12 @@ if [[ -z "${T1_orig}" ]]; then
 else
 
     echo "Inputs are -p  ${subj}  -T1 ${T1_orig}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}"
+    echo "Inputs are -p  ${subj}  -T1 ${T1_orig}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}" >> ${prep_log}
     
 fi
 
 
 # REST OF SETTINGS ---
-
-# timestamp
-start_t=$(date +%s)
 
 # Some parallelisation
 
@@ -434,96 +555,17 @@ if [[ "$n_flag" -eq 0 ]]; then
 	ncpu=8
 
 	echo " -n flag not set, using default 8 threads. "
+    echo " -n flag not set, using default 8 threads. " >> ${prep_log}
 
 else
 
 	echo " -n flag set, using " ${ncpu} " threads."
-
-fi
-
-FSLPARALLEL=$ncpu; export FSLPARALLEL
-OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
-
-d=$(date "+%Y-%m-%d_%H-%M-%S");
-
-
-# handle the dirs
-
-cd $cwd
-
-long_bids_subj="${search_sessions}"
-
-echo $long_bids_subj
-
-bids_subj=${long_bids_subj%anat}
-
-echo $bids_subj
-
-lesion_wf="${cwd}/lesion_wf"
-
-# output
-
-if [[ "$o_flag" -eq 1 ]]; then
-	
-    output_m="${out_dir}"
-
-    output_d="${output_m}/sub-${subj}${ses_long}"
-
-else
-
-	output_d="${lesion_wf}/output_LWF/sub-${subj}${ses_long}"
-
-fi
-
-# intermediate folder
-
-if [[ "$m_flag" -eq 1 ]]; then
-
-	preproc_m="${wf_dir}"
-
-    preproc="${preproc_m}/sub-${subj}${ses_long}"
-
-else
-
-	preproc="${lesion_wf}/proc_LWF/sub-${subj}${ses_long}"
-
-fi
-
-# echo $lesion_wf
-
-ROIs="${output_d}/sub-${subj}${ses_long}/ROIs"
-	
-overlap="${output_d}/sub-${subj}${ses_long}/overlap"
-
-# make your dirs
-
-mkdir -p ${preproc_m} >/dev/null 2>&1
-
-mkdir -p ${output_m} >/dev/null 2>&1
-
-mkdir -p ${preproc} >/dev/null 2>&1
-
-mkdir -p ${output_d} >/dev/null 2>&1
-
-mkdir -p ${ROIs} >/dev/null 2>&1
-
-mkdir -p ${overlap} >/dev/null 2>&1
-
-# make your log file
-
-prep_log="${preproc}/prep_log_${d}.txt";
-
-if [[ ! -f ${prep_log} ]] ; then
-
-    touch ${prep_log}
-
-else
-
-    echo "${prep_log} already created"
+    echo " -n flag set, using " ${ncpu} " threads." >> ${prep_log}
 
 fi
 
 echo "KUL_lesion_WF @ ${d} with parent pid $$ "
+echo "KUL_lesion_WF @ ${d} with parent pid $$ " >> ${prep_log}
 
 # --- MAIN ----------------
 # Start with your Vars for Part 1
@@ -542,44 +584,62 @@ echo "KUL_lesion_WF @ ${d} with parent pid $$ "
 # is this a pediatric or adult brain and whether we use donor tissue or not
 
 if [[ "${P_flag}" -eq 1 ]] && [[ "${t_flag}" -eq 0 ]]; then
+    # ADJUST TEMPLATES FOR NKI10U IF P=1 T=0
 
     echo "Working with default pediatric template and priors"
+    echo "Working with default pediatric template and priors" >> ${prep_log}
 
-    MNI_T1="${function_path}/atlasses/Templates/NKI10u_T1.nii.gz"
+    MNI_T1="${function_path}/atlasses/Templates/VBG_"
 
-    MNI_T1_brain="${function_path}/atlasses/Templates/NKI10u_brain.nii.gz"
+    MNI_T1_brain="${function_path}/atlasses/Templates/NKI10u_temp_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/NKI10u_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates/NKI10u_temp_brain_mask.nii.gz"
+
+    MNI_brain_pmask="${function_path}/atlasses/Templates/ped_PBEM.nii.gz"
+
+    MNI_brain_emask="${function_path}/atlasses/Templates/ped_BET_mask.nii.gz"
 
     new_priors="${function_path}/atlasses/Templates/priors/NKI10U_Prior_%d.nii.gz"
 
 elif [[ "${P_flag}" -eq 1 ]] && [[ "${t_flag}" -eq 1 ]]; then
+    # ADJUST TEMPLATES FOR VBG_PED IF P=1 T=1
 
-    echo "Working with cooked template template and priors"
+    echo "Working with cooked template and priors"
+    echo "Working with cooked template and priors" >> ${prep_log}
 
     MNI_T1="${function_path}/atlasses/Templates/VBG_T1_temp_ped.nii.gz"
 
     MNI_T1_brain="${function_path}/atlasses/Templates/VBG_T1_temp_ped_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/NKI10u_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates/VBG_T1_temp_ped_brain_mask.nii.gz"
+
+    MNI_brain_pmask="${function_path}/atlasses/Templates/ped_PBEM.nii.gz"
+
+    MNI_brain_emask="${function_path}/atlasses/Templates/ped_BET_mask.nii.gz"
 
     new_priors="${function_path}/atlasses/Templates/priors/VBG_ped_T_Prior_%d.nii.gz"
 
 elif [[ "${P_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 1 ]]; then
 
     echo "Working with cooked adult template and priors"
+    echo "Working with cooked adult template and priors" >> ${prep_log}
 
     MNI_T1="${function_path}/atlasses/Templates/VBG_T1_temp.nii.gz"
 
     MNI_T1_brain="${function_path}/atlasses/Templates/VBG_T1_temp_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/HR_T1_MNI_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates/VBG_T1_temp_brain_mask.nii.gz"
+
+    MNI_brain_pmask="${function_path}/atlasses/Templates/adult_PBEM.nii.gz"
+
+    MNI_brain_emask="${function_path}/atlasses/Templates/adult_BET_mask.nii.gz"
 
     new_priors="${function_path}/atlasses/Templates/priors/VBG_adult_T_Prior_%d.nii.gz"
 
 elif [[ "${P_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 0 ]]; then
 
     echo "Working with default adult template and priors"
+    echo "Working with default adult template and priors" >> ${prep_log}
 
     MNI_T1="${function_path}/atlasses/Templates/HR_T1_MNI.nii.gz"
 
@@ -587,348 +647,364 @@ elif [[ "${P_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 0 ]]; then
 
     MNI_brain_mask="${function_path}/atlasses/Templates/HR_T1_MNI_brain_mask.nii.gz"
 
+    MNI_brain_pmask="${function_path}/atlasses/Templates/adult_PBEM.nii.gz"
+
+    MNI_brain_emask="${function_path}/atlasses/Templates/adult_BET_mask.nii.gz"
+
     new_priors="${function_path}/atlasses/Templates/priors/HRT1_Prior_%d.nii.gz"
 
 fi
 
-    # should be changed to VBG templates
 
-    MNI2_in_T1="${str_pp}_T1_brain_inMNI2_InverseWarped.nii.gz"
 
-    MNI2_in_T1_hm="${str_pp}_T1_brain_inMNI2_InverseWarped_HistMatch.nii.gz"
+MNI2_in_T1="${str_pp}_T1_brain_inMNI2_InverseWarped.nii.gz"
 
-    MNI_r="${function_path}/atlasses/Templates/Rt_hemi_mask.nii.gz"
+MNI2_in_T1_hm="${str_pp}_T1_brain_inMNI2_InverseWarped_HistMatch.nii.gz"
 
-    MNI_l="${function_path}/atlasses/Templates/Lt_hemi_mask.nii.gz"
+MNI_r="${function_path}/atlasses/Templates/Rt_hemi_mask.nii.gz"
 
-    MNI_lw="${str_pp}_MNI_L_insubjT1_inMNI1.nii.gz"
+MNI_l="${function_path}/atlasses/Templates/Lt_hemi_mask.nii.gz"
 
-    MNI_lwr="${str_pp}_MNI_L_insubjT1_inMNI1r.nii.gz"
+MNI_lw="${str_pp}_MNI_L_insubjT1_inMNI1.nii.gz"
 
-    MNI_rwr="${str_pp}_MNI_R_insubjT1_inMNI1r.nii.gz"
+MNI_lwr="${str_pp}_MNI_L_insubjT1_inMNI1r.nii.gz"
 
-    L_hemi_mask="${str_pp}_L_hemi_mask_bin.nii.gz"
+MNI_rwr="${str_pp}_MNI_R_insubjT1_inMNI1r.nii.gz"
 
-    H_hemi_mask="${str_pp}_H_hemi_mask_bin.nii.gz"
+L_hemi_mask="${str_pp}_L_hemi_mask_bin.nii.gz"
 
-    L_hemi_mask_binv="${str_pp}_L_hemi_mask_binv.nii.gz"
+H_hemi_mask="${str_pp}_H_hemi_mask_bin.nii.gz"
 
-    H_hemi_mask_binv="${str_pp}_H_hemi_mask_binv.nii.gz"
+L_hemi_mask_binv="${str_pp}_L_hemi_mask_binv.nii.gz"
 
-    # CSF+GMC+GMB+WM  and the rest
+H_hemi_mask_binv="${str_pp}_H_hemi_mask_binv.nii.gz"
 
-    tmp_s2T1_nCSFGMC="${str_pp}_tmp_s2T1_nCSFGMC.nii.gz"
+# CSF+GMC+GMB+WM  and the rest
 
-    tmp_s2T1_nCSFGMCB="${str_pp}_tmp_s2T1_nCSFGMCB.nii.gz"
+tmp_s2T1_nCSFGMC="${str_pp}_tmp_s2T1_nCSFGMC.nii.gz"
 
-    tmp_s2T1_nCSFGMCBWM="${str_pp}_tmp_s2T1_nCSFGMCBWM.nii.gz"
+tmp_s2T1_nCSFGMCB="${str_pp}_tmp_s2T1_nCSFGMCB.nii.gz"
 
-    tmp_s2T1_nCSFGMCBWMr="${str_pp}_tmp_s2T1_nCSFGMCBWMr.nii.gz"
+tmp_s2T1_nCSFGMCBWM="${str_pp}_tmp_s2T1_nCSFGMCBWM.nii.gz"
 
-    tmp_s2T1_CSFGMCBWM="${str_pp}_tmp_s2T1_CSFGMCBWM.nii.gz"
+tmp_s2T1_nCSFGMCBWMr="${str_pp}_tmp_s2T1_nCSFGMCBWMr.nii.gz"
 
-    MNI2_in_T1_scaled="${str_pp}_MNI_brain_IW_scaled.nii.gz"
+tmp_s2T1_CSFGMCBWM="${str_pp}_tmp_s2T1_CSFGMCBWM.nii.gz"
 
-    tissues=("CSF" "GMC" "GMBG" "WM");
+MNI2_in_T1_scaled="${str_pp}_MNI_brain_IW_scaled.nii.gz"
 
-    priors_str="${new_priors::${#new_priors}-9}*.nii.gz"
+tissues=("CSF" "GMC" "GMBG" "WM");
 
-    priors_array=($(ls ${priors_str}))
+priors_str="${new_priors::${#new_priors}-9}*.nii.gz"
 
-    if [[ -z ${priors_array} ]]; then 
+priors_array=($(ls ${priors_str}))
 
-        echo " priors are not found!"
-        exit 2
+if [[ -z ${priors_array} ]]; then 
+
+    echo " priors are not found!"
+    exit 2
+
+else
+
+
+    echo "priors are ${priors_array}"
+
+fi
     
-    else
+# arrays
 
-    
-        echo "priors are ${priors_array}"
+declare -a Atropos1_posts
 
-    fi
-    
-    # arrays
+declare -a Atropos2_posts
 
-    declare -a Atropos1_posts
+# need also to declare tpm arrays
 
-    declare -a Atropos2_posts
+declare -a atropos1_tpms_Lfill
 
-    # need also to declare tpm arrays
+declare -a atropos2_tpms_filled
 
-    declare -a atropos1_tpms_Lfill
+declare -a atropos2_tpms_filled_GLC
 
-    declare -a atropos2_tpms_filled
+declare -a atropos2_tpms_filled_GLCbinv
 
-    declare -a atropos2_tpms_filled_GLC
+declare -a atropos2_tpms_punched
 
-    declare -a atropos2_tpms_filled_GLCbinv
+declare -a NP_arr_rs
 
-    declare -a atropos2_tpms_punched
+declare -a NP_arr_rs_bin
 
-    declare -a NP_arr_rs
+declare -a NP_arr_rs_binv
 
-    declare -a NP_arr_rs_bin
+declare -a NP_arr_rs_bin2
 
-    declare -a NP_arr_rs_binv
+declare -a NP_arr_rs_binv2
 
-    declare -a Atropos2_posts_bin
+declare -a Atropos2_posts_bin
 
-    declare -a Atropos1_posts_bin
+declare -a Atropos2_posts_bin2
 
-    declare -a T1_ntiss_At2masked
+declare -a Atropos1_posts_bin
 
-    declare -a nMNI2_inT1_ntiss_sc2T1MNI1
+declare -a T1_ntiss_At2masked
 
-    declare -a MNI2_inT1_ntiss
+declare -a nMNI2_inT1_ntiss_sc2T1MNI1
 
-    declare -a Atropos2_Int_finder
+declare -a MNI2_inT1_ntiss
 
-    declare -a R_nTiss_Norm_mean
+declare -a Atropos2_Int_finder
 
-    declare -a R_nTiss_Int_map_norm
+declare -a R_nTiss_Norm_mean
 
-    declare -a Atropos1b_ntiss_map
+declare -a R_nTiss_Int_map_norm
 
-    declare -a A1_nTiss_Norm_mean
+declare -a Atropos1b_ntiss_map
 
-    declare -a A1_nTiss_Int_scaled
+declare -a A1_nTiss_Norm_mean
 
-    declare -a A1_nTiss_Int_scaled_fill
+declare -a A1_nTiss_Int_scaled
 
-    declare -a R_nTiss_map_filled
+declare -a A1_nTiss_Int_scaled_fill
+
+declare -a R_nTiss_map_filled
 
 
 # input variables
 
-    # lesion stuff
+# lesion stuff
 
-    Lmask_o=$L_mask
+Lmask_o=$L_mask
 
-    L_mask_reori="${str_pp}_L_mask_reori.nii.gz"
+L_mask_reori="${str_pp}_L_mask_reori.nii.gz"
 
-    L_O_binv="${str_pp}_L_mask_reori_binv.nii.gz"
+L_mask_affMNI1="${str_pp}_L_mask_r_MNI1aff.nii.gz"
 
-    Lmask_bin="${str_pp}_L_mask_orig_bin.nii.gz"
+L_mask_MNI1c_bin="${str_pp}_L_mask_r_MNI1aff_bin.nii.gz"
 
-    Lmask_in_T1="${str_pp}_L_mask_in_T1.nii.gz"
+L_mask_MNI1c_binv="${str_pp}_L_mask_r_MNI1aff_binv.nii.gz"
 
-    Lmask_in_T1_bin="${str_pp}_L_mask_in_T1_bin.nii.gz"
+L_O_binv="${str_pp}_L_mask_reori_binv.nii.gz"
 
-    Lmask_in_T1_binv="${str_pp}_L_mask_in_T1_binv.nii.gz"
+Lmask_bin="${str_pp}_L_mask_orig_bin.nii.gz"
 
-    Lmask_bin_s3="${str_pp}_Lmask_in_T1_bins3.nii.gz"
+Lmask_in_T1="${str_pp}_L_mask_in_T1.nii.gz"
 
-    Lmask_binv_s3="${str_pp}_Lmask_in_T1_binvs3.nii.gz"
+Lmask_in_T1_bin="${str_pp}_L_mask_in_T1_bin.nii.gz"
 
-    brain_mask_minL="${str_pp}_antsBET_BrainMask_min_L.nii.gz"
+Lmask_in_T1_binv="${str_pp}_L_mask_in_T1_binv.nii.gz"
 
-    brain_mask_minL_inMNI1="${str_pp}_brainmask_minL_inMNI1.nii.gz"
+Lmask_bin_s3="${str_pp}_Lmask_in_T1_bins3.nii.gz"
 
-    brain_mask_minL_inMNI2="${str_pp}_brainmask_minL_inMNI2.nii.gz"
+Lmask_binv_s3="${str_pp}_Lmask_in_T1_binvs3.nii.gz"
 
-    brain_mask_minL_atropos2="${str_pp}_brainmask_minL_atropos2.nii.gz"
+brain_mask_minL="${str_pp}_antsBET_BrainMask_min_L.nii.gz"
 
-    Lmask_bin_inMNI1="${str_pp}_Lmask_bin_inMNI1.nii.gz"
+brain_mask_minL_inMNI1="${str_pp}_brainmask_minL_inMNI1.nii.gz"
 
-    Lmask_binv_inMNI1="${str_pp}_Lmask_binv_inMNI1.nii.gz"
+brain_mask_minL_inMNI2="${str_pp}_brainmask_minL_inMNI2.nii.gz"
 
-    Lmask_bin_inMNI1_s3="${str_pp}_Lmask_bin_s3_inMNI1.nii.gz"
+brain_mask_minL_atropos2="${str_pp}_brainmask_minL_atropos2.nii.gz"
 
-    Lmask_bin_inMNI1_dilx2="${str_pp}_Lmask_bin_inMNI1_dilmx2.nii.gz"
+Lmask_bin_inMNI1="${str_pp}_Lmask_bin_inMNI1.nii.gz"
 
-    Lmask_binv_inMNI1_dilx2="${str_pp}_Lmask_binv_inMNI1_dilmx2.nii.gz"
+Lmask_binv_inMNI1="${str_pp}_Lmask_binv_inMNI1.nii.gz"
 
-    Lmask_binv_inMNI1_s3="${str_pp}_Lmask_binv_s3_inMNI1.nii.gz"
+Lmask_bin_inMNI1_s3="${str_pp}_Lmask_bin_s3_inMNI1.nii.gz"
 
-    Lmask_bin_inMNI2_s3="${str_pp}_Lmask_bin_s3_inMNI2.nii.gz"
+Lmask_bin_inMNI1_dilx2="${str_pp}_Lmask_bin_inMNI1_dilmx2.nii.gz"
 
-    Lmask_binv_inMNI2_s3="${str_pp}_Lmask_binv_s3_inMNI2.nii.gz"
+Lmask_binv_inMNI1_dilx2="${str_pp}_Lmask_binv_inMNI1_dilmx2.nii.gz"
 
-    Lmask_bin_inMNI2="${str_pp}_Lmask_bin_inMNI2.nii.gz"
+Lmask_binv_inMNI1_s3="${str_pp}_Lmask_binv_s3_inMNI1.nii.gz"
 
-    fbrain_mask_minL_inMNI1="${str_pp}_fbrainmask_minL_inMNI1.nii.gz"
+Lmask_bin_inMNI2_s3="${str_pp}_Lmask_bin_s3_inMNI2.nii.gz"
 
-    L_fill_T1="${str_pp}_T1_Lfill_inMNI2.nii.gz"
+Lmask_binv_inMNI2_s3="${str_pp}_Lmask_binv_s3_inMNI2.nii.gz"
 
-    nat_T1_filled1="${str_pp}_T1inMNI2_fill1.nii.gz"
+Lmask_bin_inMNI2="${str_pp}_Lmask_bin_inMNI2.nii.gz"
 
-    stitched_T1_temp="${str_pp}_stitched_T1_brain_temp.nii.gz"
+fbrain_mask_minL_inMNI1="${str_pp}_fbrainmask_minL_inMNI1.nii.gz"
 
-    stitched_T1_nat="${str_pp}_stitched_T1_brain_nat.nii.gz"
+L_fill_T1="${str_pp}_T1_Lfill_inMNI2.nii.gz"
 
-    stitched_T1_nat_innat="${str_pp}_stitched_T1_brain_nat_bk2nat.nii.gz"
+nat_T1_filled1="${str_pp}_T1inMNI2_fill1.nii.gz"
 
-    stitched_T1_temp_innat="${str_pp}_stitched_T1_brain_temp_bk2nat.nii.gz"
+stitched_T1_temp="${str_pp}_stitched_T1_brain_temp.nii.gz"
 
-    stitched_T1="${str_pp}_stitched_T1_brain.nii.gz"
+stitched_T1_nat="${str_pp}_stitched_T1_brain_nat.nii.gz"
 
-    T1_bk2nat1_str="${str_pp}_T1_brain_bk2anat1_"
+stitched_T1_nat_innat="${str_pp}_stitched_T1_brain_nat_bk2nat.nii.gz"
 
-    Temp_L_hemi="${str_pp}_Temp_L_hemi_filler.nii.gz"
+stitched_T1_temp_innat="${str_pp}_stitched_T1_brain_temp_bk2nat.nii.gz"
 
-    Temp_L_fill_T1="${str_pp}_Temp_L_fill_T1.nii.gz"
+stitched_T1="${str_pp}_stitched_T1_brain.nii.gz"
 
-    Temp_T1_bilfilled1="${str_pp}_T1_brain_Temp_bil_Lmask_filled1.nii.gz"
+T1_bk2nat1_str="${str_pp}_T1_brain_bk2anat1_"
 
-    Temp_bil_Lmask_fill1="${str_pp}_Temp_bil_Lmask_fill1.nii.gz"
+Temp_L_hemi="${str_pp}_Temp_L_hemi_filler.nii.gz"
 
-    Temp_T1_filled1="${str_pp}_Temp_T1inMNI2_filled1.nii.gz"
+Temp_L_fill_T1="${str_pp}_Temp_L_fill_T1.nii.gz"
 
-    T1_filled_bk2nat1="${str_pp}_T1_brain_bk2anat1_InverseWarped.nii.gz"
+Temp_T1_bilfilled1="${str_pp}_T1_brain_Temp_bil_Lmask_filled1.nii.gz"
 
-    filled_segm_im="${str_pp}_atropos1_Segmentation_2nat.nii.gz"
+Temp_bil_Lmask_fill1="${str_pp}_Temp_bil_Lmask_fill1.nii.gz"
 
-    real_segm_im="${str_pp}_atropos2_Segmentation_2nat.nii.gz"
+Temp_T1_filled1="${str_pp}_Temp_T1inMNI2_filled1.nii.gz"
 
-    Lfill_segm_im="${str_pp}_Lfill_segmentation_im.nii.gz"
+T1_filled_bk2nat1="${str_pp}_T1_brain_bk2anat1_InverseWarped.nii.gz"
 
-    atropos2_segm_im_filled="${str_pp}_filled_atropos2_segmentation_im.nii.gz"
+filled_segm_im="${str_pp}_atropos1_Segmentation_2nat.nii.gz"
 
-    atropos2_segm_im_filled_nat="${str_pp}_filled_atropos2_segmentation_im.nii.gz"
+real_segm_im="${str_pp}_atropos2_Segmentation_2nat.nii.gz"
 
-    lesion_left_overlap="${str_overlap}_L_lt_overlap.nii.gz"
+Lfill_segm_im="${str_pp}_Lfill_segmentation_im.nii.gz"
 
-    lesion_right_overlap="${str_overlap}_L_rt_overlap.nii.gz"
+atropos2_segm_im_filled="${str_pp}_filled_atropos2_segmentation_im.nii.gz"
 
-    smoothed_binLmask15="${str_pp}_smoothedLmaskbin15.nii.gz"
+atropos2_segm_im_filled_nat="${str_pp}_filled_atropos2_segmentation_im.nii.gz"
 
-    smoothed_binvLmask15="${str_pp}_smoothedLmaskbinv15.nii.gz"
+lesion_left_overlap="${str_overlap}_L_lt_overlap.nii.gz"
 
-    # last lesion related vars (hopefully)
+lesion_right_overlap="${str_overlap}_L_rt_overlap.nii.gz"
 
-    L_mask_reori_scaled="${str_pp}_L_mask_reori_scaled99.nii.gz"
+smoothed_binLmask15="${str_pp}_smoothedLmaskbin15.nii.gz"
 
-    bmc_minL_conn="${str_pp}_brain_mask_cleaned_minL_conn.nii.gz"
+smoothed_binvLmask15="${str_pp}_smoothedLmaskbinv15.nii.gz"
 
-    bmc_minL_true="${str_pp}_brain_mask_cleaned_minL.nii.gz"
+# last lesion related vars (hopefully)
 
-    L_mask_reori_ero1="${str_pp}_L_mask_reori_ero1.nii.gz"
+L_mask_reori_scaled="${str_pp}_L_mask_reori_scaled99.nii.gz"
 
-    bmc_minL_ero1="${str_pp}_brain_mask_cleaned_minL_ero1.nii.gz"
+bmc_minL_conn="${str_pp}_brain_mask_cleaned_minL_conn.nii.gz"
 
-    L_mask_reori_ero2="${str_pp}_L_mask_reori_ero2.nii.gz"
+bmc_minL_true="${str_pp}_brain_mask_cleaned_minL.nii.gz"
 
-    bmc_minL_ero2="${str_pp}_brain_mask_cleaned_minL_ero2.nii.gz"
+L_mask_reori_ero1="${str_pp}_L_mask_reori_ero1.nii.gz"
 
-    # img vars for part 1 and 2
+bmc_minL_ero1="${str_pp}_brain_mask_cleaned_minL_ero1.nii.gz"
 
-    T1_reori_mat="${str_pp}_T1_reori2std_matrix.mat"
+L_mask_reori_ero2="${str_pp}_L_mask_reori_ero2.nii.gz"
 
-    T1_reori_mat_inv="${str_pp}_T1_reori2std_matrix_inv.mat"
+bmc_minL_ero2="${str_pp}_brain_mask_cleaned_minL_ero2.nii.gz"
 
-    T1_N4BFC="${str_pp}_T1_dn_bfc.nii.gz"
+# img vars for part 1 and 2
 
-    T1_N4BFC_inMNI1="${str_pp}_T1_dn_bfc_INMNI1.nii.gz"
+T1_reori_mat="${str_pp}_T1_reori2std_matrix.mat"
 
-    T1_brain="${str_pp}_antsBET_BrainExtractionBrain.nii.gz"
+T1_reori_mat_inv="${str_pp}_T1_reori2std_matrix_inv.mat"
 
-    brain_mask="${str_pp}_antsBET_BrainExtractionMask.nii.gz"
+T1_N4BFC="${str_pp}_T1_dn_bfc.nii.gz"
 
-    T1_inMNI_aff_str="${str_pp}_T1_inMNI_aff"
+T1_N4BFC_inMNI1="${str_pp}_T1_dn_bfc_INMNI1.nii.gz"
 
-    T1_inMNI_aff="${str_pp}_T1_inMNI_aff_Warped.nii.gz"
+T1_brain="${str_pp}_antsBET_BrainExtractionBrain.nii.gz"
 
-    KULBETp="${str_pp}_atropos4BET"
+brain_mask="${str_pp}_antsBET_BrainExtractionMask.nii.gz"
 
-    rough_mask="${str_pp}_rough_mask.nii.gz"
+T1_inMNI_aff_str="${str_pp}_T1_inMNI_aff"
 
-    rough_mask_minL="${str_pp}_rough_mask_minL.nii.gz"
+T1_inMNI_aff="${str_pp}_T1_inMNI_aff_Warped.nii.gz"
 
-    clean_mask_nat_binv="${str_pp}_clean_brain_mask_nat_binv.nii.gz"
+KULBETp="${str_pp}_atropos4BET"
 
-    T1_brain_clean="${str_pp}_Brain_clean.nii.gz"
+rough_mask="${str_pp}_rough_mask.nii.gz"
 
-    MNI_bm_BET_innat="${str_pp}_MNI_BM_inNat.nii.gz"
+rough_mask_minL="${str_pp}_rough_mask_minL.nii.gz"
 
-    clean_mask_nat="${str_pp}_Brain_clean_mask.nii.gz"
+clean_mask_nat_binv="${str_pp}_clean_brain_mask_nat_binv.nii.gz"
 
-    clean_BM_mgz="${str_pp}_Brain_clean_mask.mgz"
+T1_brain_clean="${str_pp}_Brain_clean.nii.gz"
 
-    hdbet_str="${str_pp}_Brain_clean"
+MNI_bm_BET_innat="${str_pp}_MNI_BM_inNat.nii.gz"
 
-    BET_mask_s2="${str_pp}_antsBET_Mask_s2.nii.gz"
+clean_mask_nat="${str_pp}_Brain_clean_mask.nii.gz"
 
-    BET_mask_binvs2="${str_pp}_antsBET_Mask_binv_s2.nii.gz"
+clean_BM_mgz="${str_pp}_Brain_clean_mask.mgz"
 
-    T1_skull="${str_pp}_T1_skull.nii.gz"
+hdbet_str="${str_pp}_Brain_clean"
 
-    T1_brMNI1_str="${str_pp}_T1_brain_inMNI1_"
+BET_mask_s2="${str_pp}_antsBET_Mask_s2.nii.gz"
 
-    T1_brain_inMNI1="${str_pp}_T1_brain_inMNI1_Warped.nii.gz"
+BET_mask_binvs2="${str_pp}_antsBET_Mask_binv_s2.nii.gz"
 
-    T1_noise_inMNI1="${str_pp}_T1_noise_inMNI1.nii.gz"
+T1_skull="${str_pp}_T1_skull.nii.gz"
 
-    fT1_noise_inMNI1="${str_pp}_fT1_noise_inMNI1.nii.gz"
+T1_brMNI1_str="${str_pp}_T1_brain_inMNI1_"
 
-    T1_noise_H_hemi="${str_pp}_T1_noise_Hhemi_inMNI1.nii.gz"
-    
-    stitched_noise_MNI1="${str_pp}_T1_stitched_noise_inMNI1.nii.gz"
+T1_brain_inMNI1="${str_pp}_T1_brain_inMNI1_Warped.nii.gz"
 
-    stitched_noise_nat="${str_pp}_T1_stitched_noise_nat.nii.gz"
+T1_noise_inMNI1="${str_pp}_T1_noise_inMNI1.nii.gz"
 
-    T1_brMNI2_str="${str_pp}_T1_brain_inMNI2_"
-    
-    T1_brain_inMNI2="${str_pp}_T1_brain_inMNI2_Warped.nii.gz"
+fT1_noise_inMNI1="${str_pp}_fT1_noise_inMNI1.nii.gz"
 
-    fT1brain_inMNI1="${str_pp}_fT1_brain_inMNI1_Warped.nii.gz"
+T1_noise_H_hemi="${str_pp}_T1_noise_Hhemi_inMNI1.nii.gz"
 
-    fT1_brMNI2_str="${str_pp}_fT1_brain_inMNI2_"
+stitched_noise_MNI1="${str_pp}_T1_stitched_noise_inMNI1.nii.gz"
 
-    fT1brain_inMNI2="${str_pp}_fT1_brain_inMNI2_Warped.nii.gz"
+stitched_noise_nat="${str_pp}_T1_stitched_noise_nat.nii.gz"
 
-    brain_mask_inMNI1="${str_pp}_brain_mask_inMNI1.nii.gz"
+T1_brMNI2_str="${str_pp}_T1_brain_inMNI2_"
 
-    # MNI_brain_mask_in_nat="${str_pp}_MNI_brain_mask_in_nat.nii.gz"
+T1_brain_inMNI2="${str_pp}_T1_brain_inMNI2_Warped.nii.gz"
 
-    T1_sti2fil_str="${str_pp}_stitchT12filled_brain_"
+fT1brain_inMNI1="${str_pp}_fT1_brain_inMNI1_Warped.nii.gz"
 
-    T1fill2MNI1minL_str="${str_pp}_filledT12MNI1_brain_"
+fT1_brMNI2_str="${str_pp}_fT1_brain_inMNI2_"
 
-    T1_sti2fill_brain="${str_pp}_stitchT12filled_brain_Warped.nii.gz"
+fT1brain_inMNI2="${str_pp}_fT1_brain_inMNI2_Warped.nii.gz"
 
-    T1fill2MNI1minL_brain="${str_pp}_filledT12MNI1_brain_Warped.nii.gz"
+brain_mask_inMNI1="${str_pp}_brain_mask_inMNI1.nii.gz"
 
-    stiT1_synthT1_diff="${str_pp}_stitchT1synthT1_diff_map.nii.gz"
+# MNI_brain_mask_in_nat="${str_pp}_MNI_brain_mask_in_nat.nii.gz"
 
-    filledT1_synthT1_diff="${str_pp}_filledT1synthT1_diff_map.nii.gz"
+T1_sti2fil_str="${str_pp}_stitchT12filled_brain_"
 
-    T1_fin_Lfill="${str_pp}_T1_finL_fill.nii.gz"
+T1fill2MNI1minL_str="${str_pp}_filledT12MNI1_brain_"
 
-    T1_fin_filled="${str_pp}_T1_finL_filled.nii.gz"
+T1_sti2fill_brain="${str_pp}_stitchT12filled_brain_Warped.nii.gz"
 
-    T1_nat_filled_out="${str_op}_T1_stdOri_filled.nii.gz"
+T1fill2MNI1minL_brain="${str_pp}_filledT12MNI1_brain_Warped.nii.gz"
 
-    T1_nat_fout_wskull="${str_op}_T1_stdOri_filld_wskull.nii.gz"
+stiT1_synthT1_diff="${str_pp}_stitchT1synthT1_diff_map.nii.gz"
 
-    T1_nat_fout_wN_skull="${str_op}_T1_stdORI_filld_wN_skull.nii.gz"
+filledT1_synthT1_diff="${str_pp}_filledT1synthT1_diff_map.nii.gz"
 
-    # vars for final output in input space
-    
-    T1_4_FS="${str_op}_T1_nat_filled.nii.gz"
+T1_fin_Lfill="${str_pp}_T1_finL_fill.nii.gz"
 
-    T1_Brain_4_FS="${str_op}_T1_nat_filled_brain.nii.gz"
+T1_fin_filled="${str_pp}_T1_finL_filled.nii.gz"
 
-    T1_BM_4_FS="${str_op}_T1_nat_filled_mask.nii.gz"
+T1_nat_filled_out="${str_op}_T1_stdOri_filled.nii.gz"
 
-    # img vars for part 2
+T1_nat_fout_wskull="${str_op}_T1_stdOri_filld_wskull.nii.gz"
 
-    T1_H_hemi="${str_pp}_T1_H_hemi.nii.gz"
+T1_nat_fout_wN_skull="${str_op}_T1_stdORI_filld_wN_skull.nii.gz"
 
-    fT1_H_hemi="${str_pp}_fT1_H_hemi.nii.gz"
+# vars for final output in input space
 
-    # img vars for make ims loops
+T1_4_FS="${str_op}_T1_nat_filled.nii.gz"
 
-    MNI2_in_T1_linsc_norm="${str_pp}_MNI2_inT1_linsc_norm.nii.gz"
-    
-    atropos1_brain_norm="${str_pp}_Atropos1_brain_norm.nii.gz"
+T1_Brain_4_FS="${str_op}_T1_nat_filled_brain.nii.gz"
 
-    T1b_inMNI1_pN_sc2st2f="${str_pp}_T1b_inMNI1_pN_sc2_st2fill.nii.gz"
-    
-    T1b_inMNI1_punched="${str_pp}_T1brain_inMNI1_punched.nii.gz"
-    
-    T1b_inMNI1_p_norm="${str_pp}_T1brain_inMNI1_punched_norm.nii.gz"
+T1_BM_4_FS="${str_op}_T1_nat_filled_mask.nii.gz"
 
-    #
+# img vars for part 2
+
+T1_H_hemi="${str_pp}_T1_H_hemi.nii.gz"
+
+fT1_H_hemi="${str_pp}_fT1_H_hemi.nii.gz"
+
+# img vars for make ims loops
+
+MNI2_in_T1_linsc_norm="${str_pp}_MNI2_inT1_linsc_norm.nii.gz"
+
+atropos1_brain_norm="${str_pp}_Atropos1_brain_norm.nii.gz"
+
+T1b_inMNI1_pN_sc2st2f="${str_pp}_T1b_inMNI1_pN_sc2_st2fill.nii.gz"
+
+T1b_inMNI1_punched="${str_pp}_T1brain_inMNI1_punched.nii.gz"
+
+T1b_inMNI1_p_norm="${str_pp}_T1brain_inMNI1_punched_norm.nii.gz"
+
+#
 
 # workflow markers for processing control
 
@@ -1047,59 +1123,82 @@ function KUL_antsRegSyN_Def {
 
 function KUL_antsBETp {
 
-    # need to try this out!
-
-    # if you want to use the modified ANTs based BET approach and not HD-BET
-    # just comment out the if loop and hd-bet condition (be sure to get the if, else and fi lines)
-
     task_in="fslreorient2std ${Lmask_o} ${L_mask_reori}"
 
     task_exec
 
-    if [[ $(which hd-bet) ]]; then
+    # BET is done after an initial affine transform to template space
 
-        hd_bet_flag=1
+    task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1} -m ${prim_in} -o ${output}_aff_2_temp_ -t a"
+    
+    task_exec
 
-        echo "hd-bet is present, will use this for brain extraction" >> ${prep_log}
+    task_in="WarpImageMultiTransform 3 ${L_mask_reori} ${L_mask_affMNI1} -R ${MNI_T1} ${output}_aff_2_temp_0GenericAffine.mat \
+    && fslmaths ${L_mask_affMNI1} -mas ${MNI_brain_mask} -bin -save ${L_mask_MNI1c_bin} -binv ${L_mask_MNI1c_binv}"
 
-        # echo "sourcing ptc conda virtual env, if yours is named differently please edit lines 822 823 " >> ${prep_log}
+    task_exec
+
+    # this approach ensures minimal failures in either case
+    # if HD-BET excludes too much of a brain or if ANTs includes too much
+
+    if [[ ${BET_m} -eq 1 ]]; then
+
+        echo "HD-BET is selected, will use this for brain extraction" >> ${prep_log}
+
+        echo "sourcing ptc conda virtual env, if yours is named differently please edit lines 822 823 " >> ${prep_log}
 
         # task_in="source /anaconda3/bin/activate ptc && hd-bet -i ${prim_in} -o ${output} -tta 0 -mode fast -s 1 -device cpu"
 
         # task_exec
 
-        task_in="hd-bet -i ${prim_in} -o ${output}"
+        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i"
+
+        task_exec
+
+        task_in="mrcalc -force -nthreads ${ncpu} ${output}_i_mask.nii.gz ${L_mask_MNI1c_binv} -mul ${L_mask_MNI1c_bin} -add ${output}_brain_mask_c_h_MNI1aff.nii.gz \
+        && ImageMath 3 ${output}_brain_mask_c_hf_MNI1aff.nii.gz FillHoles ${output}_brain_mask_c_h_MNI1aff.nii.gz \
+        && mrcalc -force -nthreads ${ncpu} ${output}_brain_mask_c_hf_MNI1aff.nii.gz ${output}_aff_2_temp_Warped.nii.gz -mult ${output}_brain_c_MNI1aff.nii.gz"
+
+        task_exec
+
+        task_in="WarpImageMultiTransform 3 ${output}_brain_c_MNI1aff.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat && fslmaths \
+        ${output}.nii.gz -thr 0.1 -bin ${clean_mask_nat}"
+
+        task_exec
+
+    elif [[ ${BET_m} -eq 2 ]]; then
+
+        echo "ANTsBET is selected, will use this for brain extraction" >> ${prep_log}
+
+        # if you want to use the modified ANTs based BET approach and not HD-BET
+        # just comment out the if loop and hd-bet condition (be sure to get the if, else and fi lines)
+        
+        task_in="antsBrainExtraction.sh -d 3 -a ${output}_aff_2_temp_Warped.nii.gz -e ${MNI_T1} -m ${MNI_brain_pmask} -f ${MNI_brain_emask} -u 1 -k 1 -q 1 -o ${output}_"
+
+        task_exec
+
+        # Bring results back to native space
+
+        task_in="fslmaths ${output}_BrainExtractionMask.nii.gz -mul ${MNI_brain_pmask} -save ${output}_brain_mask_c_MNI1aff.nii.gz -restart \
+        ${output}_BrainExtractionBrain.nii.gz -mul ${output}_brain_mask_c_MNI1aff.nii.gz ${output}_BrainExtractionBrain_c.nii.gz \
+        WarpImageMultiTransform 3 ${output}_BrainExtractionBrain_c.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat"
+
+        task_exec
+
+        task_in="fslmaths ${T1_brain_clean} -bin ${clean_mask_nat}"
 
         task_exec
 
     else
 
-        echo "hd-bet is not found, resorting to ANTs based BET" >> ${prep_log}
-
-        task_in="mrthreshold -force -nthreads ${ncpu} -percentile 55 ${prim_in} ${rough_mask} -force -nthreads ${ncpu} && fslmaths ${L_mask_reori} -binv -mul ${rough_mask} ${rough_mask_minL}"
-
-        task_exec
-
-        task_in="antsBrainExtraction.sh -d 3 -a ${prim_in} -e ${MNI_T1} -m ${MNI_brain_mask} -f ${rough_mask_minL} -u 1 -k 1 -o ${output}_"
-
-        task_exec
-
-        # use the inverse priors warp from antsbet to get MNI_brain_mask to T1 space and apply it to the brain
-
-        task_in="WarpImageMultiTransform 3 ${MNI_brain_mask} ${MNI_bm_BET_innat} -R ${prim_in} -i ${output}_BrainExtractionPrior0GenericAffine.mat \
-        ${output}_BrainExtractionPrior1InverseWarp.nii.gz"
-
-        task_exec
-
-        task_in="fslmaths ${MNI_bm_BET_innat} -thr 0.1 -bin -mul ${output}_BrainExtractionBrain.nii.gz -save ${T1_brain_clean} -bin ${clean_mask_nat}"
-
-        task_exec
+        echo "we have a problem"
 
     fi
 
     # exit 2
 
 }
+
 
 # Dealing with the lesion mask part 1
 
@@ -1147,7 +1246,7 @@ function KUL_Lmask_part1 {
 #  define all vars for this function
 
 function KUL_Lmask_part2 {
-
+    
     #############################################################
     # creating edited lesion masks
     # should add proc control to this section
@@ -1350,17 +1449,13 @@ function KUL_Lmask_part2 {
 
     for ts in ${!tissues[@]}; do
 
-        NP_arr_rs[$ts]="${str_pp}_atropos_${tissues[$ts]}_rs.nii.gz"
+        NP_arr_rs[$ts]="${str_pp}_atroposP_${tissues[$ts]}_rs.nii.gz"
 
-        NP_arr_rs_bin[$ts]="${str_pp}_atropos_${tissues[$ts]}_rs_bin.nii.gz"
+        NP_arr_rs_bin[$ts]="${str_pp}_atroposP_${tissues[$ts]}_rs_bin.nii.gz"
 
-        NP_arr_rs_binv[$ts]="${str_pp}_atropos_${tissues[$ts]}_rs_binv.nii.gz"
+        NP_arr_rs_binv[$ts]="${str_pp}_atroposP_${tissues[$ts]}_rs_binv.nii.gz"
 
-        Atropos2_posts_bin[$ts]="${str_pp}_atropos_${tissues[$ts]}_bin.nii.gz"
-
-        # MNI2inT1_tiss_HM[$ts]="${str_pp}_atropos_${tissues[$ts]}_HM.nii.gz"
-
-        # MNI2inT1_tiss_HMM[$ts]="${str_pp}_atropos_${tissues[$ts]}_HMM.nii.gz"
+        Atropos2_posts_bin[$ts]="${str_pp}_atropos2_${tissues[$ts]}_bin.nii.gz"
 
         MNI2_inT1_ntiss[$ts]="${str_pp}_MNItmp_${tissues[$ts]}_IM.nii.gz"
 
@@ -1375,28 +1470,86 @@ function KUL_Lmask_part2 {
 
         task_exec
 
-        # create the tissue masks and punch the lesion out of them
-
-        task_in="fslmaths ${NP_arr_rs[$ts]} -thr 0.1 -mas ${MNI_brain_mask} -bin -save ${NP_arr_rs_bin[$ts]} -binv \
-        ${NP_arr_rs_binv[$ts]} && mrthreshold -force -quiet -nthreads ${ncpu} -toppercent 5 ${Atropos2_posts[$ts]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.001 -gt ${Atropos2_posts_bin[$ts]}"
+        task_in="mrcalc -force -nthreads ${ncpu} ${NP_arr_rs[$ts]} 0.2 -ge ${str_pp}_atropos_${tissues[$ts]}_rs_thr.nii.gz"
 
         task_exec
+
+        task_in="mrcalc -force -nthreads ${ncpu} ${str_pp}_atropos_${tissues[$ts]}_rs_thr.nii.gz 0.2 -ge 1 $((ts+1)) -replace ${NP_arr_rs_bin[$ts]} && mrcalc -force -nthreads ${ncpu} ${NP_arr_rs_bin[$ts]} -1 -mult 0 -ge ${NP_arr_rs_binv[$ts]}"
+
+        task_exec
+
+    done
+
+    # combine tpms to 1 3D segmentation map
+
+    task_in="mrcalc -force -nthreads ${ncpu} ${NP_arr_rs[3]} 0.1 -ge 1 4 -replace ${NP_arr_rs_bin[3]} && mrcalc -force -nthreads ${ncpu} ${NP_arr_rs_bin[3]} -1 -mult 0 -gt ${NP_arr_rs_binv[3]}"
+    
+    task_exec
+
+    task_in="mrcalc -force -nthreads ${ncpu} ${NP_arr_rs_bin[3]} ${NP_arr_rs_binv[1]} -mult ${NP_arr_rs_binv[2]} -mult ${NP_arr_rs_binv[0]} -mult ${str_pp}_atropos_priors_WM_prepped.nii.gz"
+
+    task_exec
+    
+    # task_in="fslmaths ${NP_arr_rs[2]} -thr 0.2 -save ${str_pp}_atropos_${tissues[2]}_rs_thr.nii.gz -thr 0.2 -bin -mul 3 -save ${NP_arr_rs_bin[2]} -binv -save ${NP_arr_rs_binv[2]} \
+    # -restart ${NP_arr_rs[1]} -thr 0.2 -save ${str_pp}_atropos_${tissues[1]}_rs_thr.nii.gz -thr 0.2 -bin -mul 2 -save ${NP_arr_rs_bin[1]} -binv -save ${NP_arr_rs_binv[1]} -restart  \
+    # ${NP_arr_rs[0]} -thr 0.2 -save ${str_pp}_atropos_${tissues[0]}_rs_thr.nii.gz -thr 0.2 -bin -mul 1 -save ${NP_arr_rs_bin[0]} -binv -save ${NP_arr_rs_binv[0]} -restart \
+    # ${NP_arr_rs[3]} -thr 0.05 -save ${str_pp}_atropos_${tissues[3]}_rs_thr.nii.gz -thr 0.05 -bin -mul 4 -save ${NP_arr_rs_bin[3]} -binv -save ${NP_arr_rs_binv[3]} -restart \
+    # ${NP_arr_rs_bin[3]} -mul ${NP_arr_rs_bin[3]} -mul ${NP_arr_rs_binv[1]} -mul ${NP_arr_rs_binv[2]} -mul ${NP_arr_rs_binv[0]} \
+    # ${str_pp}_atropos_priors_WM_prepped.nii.gz"
+
+    # task_exec
+
+    # add them all up to make the segmentatiom image
+
+    task_in="fslmaths ${NP_arr_rs_bin[1]} -mul ${NP_arr_rs_binv[2]} -add ${NP_arr_rs_bin[2]} -save ${str_pp}_atropos_priors_GMC+BG_prepped.nii.gz \
+    -mul ${NP_arr_rs_binv[0]} -add ${NP_arr_rs_bin[0]} ${str_pp}_atropos_priors_GMC+BG+CSF_prepped.nii.gz && ImageMath 3 \
+    ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p.nii.gz addtozero ${str_pp}_atropos_priors_GMC+BG+CSF_prepped.nii.gz ${NP_arr_rs_bin[3]} \
+    ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p.nii.gz && ImageMath 3 ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p2.nii.gz \
+    ReplaceVoxelValue ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p.nii.gz 5 10 4 && ImageMath 3 ${str_pp}_atropos_priors_GMC+BG+CSF+WM_ready.nii.gz \
+    FillHoles ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p2.nii.gz"
+
+    task_exec
+
+    for ts in ${!tissues[@]}; do
+
+        NP_arr_rs_bin2[$ts]="${str_pp}_atroposP_${tissues[$ts]}_rs_bin2.nii.gz"
+
+        NP_arr_rs_binv2[$ts]="${str_pp}_atroposP_${tissues[$ts]}_rs_binv2.nii.gz"
+
+        Atropos2_posts_bin2[$ts]="${str_pp}_atropos2_${tissues[$ts]}_bin2.nii.gz"
+       
+        # create the tissue masks and punch the lesion out of them
+
+        task_in="fslmaths ${str_pp}_atropos_priors_GMC+BG+CSF+WM_ready.nii.gz -thr $((ts+1)) -uthr $((ts+1)) -bin -mul ${NP_arr_rs[$ts]} -mas ${MNI_brain_mask} -bin -save ${NP_arr_rs_bin2[$ts]} -binv \
+        ${NP_arr_rs_binv2[$ts]} && mrthreshold -force -quiet -nthreads ${ncpu} -percentile 99 ${Atropos2_posts[$ts]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.2 -ge ${Atropos2_posts_bin2[$ts]} -force"
+
+        task_exec
+
+    done
+
+    task_in="fslmaths ${str_pp}_atropos_priors_GMC+BG+CSF+WM_ready.nii.gz -thr 4 -uthr 4 -bin -mul ${NP_arr_rs[3]} -mas ${MNI_brain_mask} -bin -save ${str_pp}_atroposP_WM_rs_bin2.nii.gz -binv \
+    ${str_pp}_atroposP_WM_rs_binv2.nii.gz && mrthreshold -force -quiet -nthreads ${ncpu} -percentile 99 ${Atropos2_posts[3]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.2 -ge \
+    ${str_pp}_atropos2_WM_bin2.nii.gz -force"
+
+    task_exec
+
+    for gs in ${!tissues[@]}; do
 
         # get tissue intensity maps from template
 
-        task_in="fslmaths ${MNI2_in_T1_linsc_norm} -mas ${NP_arr_rs_bin[$ts]} ${MNI2_inT1_ntiss[$ts]} && fslmaths ${T1b_inMNI1_p_norm} -mas ${Atropos2_posts_bin[$ts]} \
-        ${T1_ntiss_At2masked[$ts]}"
+        task_in="fslmaths ${MNI2_in_T1_linsc_norm} -mas ${NP_arr_rs_bin2[$gs]} ${MNI2_inT1_ntiss[$gs]} && fslmaths ${T1b_inMNI1_p_norm} -mas ${Atropos2_posts_bin2[$gs]} \
+        ${T1_ntiss_At2masked[$gs]}"
 
         task_exec
 
-        T1_ntiss_At2m_mean=$(fslstats ${T1_ntiss_At2masked[$ts]} -M)
+        T1_ntiss_At2m_mean=$(fslstats ${T1_ntiss_At2masked[$gs]} -M)
 
-        MNI2_inT1_ntiss_mean=$(fslstats ${MNI2_inT1_ntiss[$ts]} -M)
+        MNI2_inT1_ntiss_mean=$(fslstats ${MNI2_inT1_ntiss[$gs]} -M)
 
-        task_in="fslmaths ${MNI2_inT1_ntiss[$ts]} -div ${MNI2_inT1_ntiss_mean} -mul ${T1_ntiss_At2m_mean} ${nMNI2_inT1_ntiss_sc2T1MNI1[$ts]}"
+        task_in="fslmaths ${MNI2_inT1_ntiss[$gs]} -div ${MNI2_inT1_ntiss_mean} -mul ${T1_ntiss_At2m_mean} ${nMNI2_inT1_ntiss_sc2T1MNI1[$gs]}"
 
         task_exec
-
+        
     done
 
     # Sum up the tissues while masking in and out to minimize overlaps and holes
@@ -1412,32 +1565,46 @@ function KUL_Lmask_part2 {
 
     # fix for CSF signal in case a post contrast input is used
 
-    if  (( $(bc <<<"${CSF_max} > ${CSF_nmean}") )); then
+    # if  (( $(bc <<<"${CSF_max} > ${CSF_nmean}") )); then
 
-        echo " CSF signal is too high, is this a postcontrast scan ? correcting"
+    #     echo " CSF signal is too high, is this a postcontrast scan ? correcting"
 
-        echo " CSF signal is too high, is this a postcontrast scan ? correcting" >> ${prep_log}
+    #     echo " CSF signal is too high, is this a postcontrast scan ? correcting" >> ${prep_log}
 
-        task_in="fslmaths ${MNI2_inT1_ntiss[0]} -div ${CSF_max} -mul ${CSF_nmean} ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+    echo " Harcoded CSF and WM correction"
+    echo " Harcoded CSF and WM correction" >> ${prep_log}
 
-        task_exec
+    task_in="fslmaths ${MNI2_inT1_ntiss[0]} -div ${CSF_max} -mul ${CSF_nmean} ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 
-        task_in="ImageMath 3 ${tmp_s2T1_nCSFGMC} addtozero ${nMNI2_inT1_ntiss_sc2T1MNI1[1]} ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz && ImageMath 3 \
-        ${tmp_s2T1_nCSFGMCB} addtozero ${tmp_s2T1_nCSFGMC} ${nMNI2_inT1_ntiss_sc2T1MNI1[2]} && ImageMath 3 ${tmp_s2T1_nCSFGMCBWM} addtozero ${tmp_s2T1_nCSFGMCB} ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}"
+    task_exec
 
-        task_exec
+    MNI2_inT1_ntiss[0]="${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 
-    else
+    # fi
 
-        task_in="ImageMath 3 ${tmp_s2T1_nCSFGMC} addtozero ${nMNI2_inT1_ntiss_sc2T1MNI1[1]} ${nMNI2_inT1_ntiss_sc2T1MNI1[0]} && ImageMath 3 \
-        ${tmp_s2T1_nCSFGMCB} addtozero ${tmp_s2T1_nCSFGMC} ${nMNI2_inT1_ntiss_sc2T1MNI1[2]} && ImageMath 3 ${tmp_s2T1_nCSFGMCBWM} addtozero ${tmp_s2T1_nCSFGMCB} ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}"
+    GM_max=$(mrstats -ignorezero -output max -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]})
 
-        task_exec
+    WM_nmean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]})
 
+    # if (( $(bc <<<"${GM_max} > ${WM_nmean}") )); then
 
-    fi
+        # echo " WM signal is too low, poor quality scan? correcting "
 
-    
+        # echo " WM signal is too low, poor quality scan? correcting " >> ${prep_log}
+
+    task_in="fslmaths ${MNI2_inT1_ntiss[3]} -div ${WM_nmean} -mul ${GM_max} -mul 1.2 ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+
+    task_exec
+
+    MNI2_inT1_ntiss[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+
+    # fi
+
+    task_in="ImageMath 3 ${tmp_s2T1_nCSFGMC} addtozero ${nMNI2_inT1_ntiss_sc2T1MNI1[1]} ${nMNI2_inT1_ntiss_sc2T1MNI1[0]} && ImageMath 3 \
+    ${tmp_s2T1_nCSFGMCB} addtozero ${tmp_s2T1_nCSFGMC} ${nMNI2_inT1_ntiss_sc2T1MNI1[2]} && ImageMath 3 ${tmp_s2T1_nCSFGMCBWM} addtozero ${tmp_s2T1_nCSFGMCB} ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}"
+
+    task_exec
+
     task_in="ImageMath 3 ${tmp_s2T1_nCSFGMCBWMr} addtozero ${tmp_s2T1_nCSFGMCBWM} ${T1b_inMNI1_p_norm}"
 
     task_exec
@@ -2268,7 +2435,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
         task_exec
 
         task_in="fslmaths ${str_pp}_donor_T1_native_S.nii.gz -div `mrstats -force -nthreads ${ncpu} -quiet -mask ${clean_mask_nat} -ignorezero -output mean ${str_pp}_donor_T1_native_S.nii.gz ` \
-        -mul `mrstats -mask ${brain_mask_minL} -force -nthreads ${ncpu} -quiet -ignorezero -output mean ${T1_brain_clean} ` -mul ${Lmask_bin_s3} ${T1_fin_Lfill}"
+        -mul `mrstats -mask ${brain_mask_minL} -force -nthreads ${ncpu} -quiet -ignorezero -output mean ${T1_brain_clean} ` \
+        -save ${str_op}_donor_brain.nii.gz -mul ${Lmask_bin_s3} ${T1_fin_Lfill}"
 
         task_exec
         
@@ -2299,7 +2467,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
             # will need this here
 
             task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -thr 0 -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
-            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -add ${stitched_noise_nat} -thr 0 ${T1_nat_fout_wN_skull}"
+            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -thr 0 ${T1_nat_fout_wN_skull}"
 
             task_exec
         
@@ -2318,7 +2486,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
             # if bilateral is 1, then we generate final output with original noise map
         
             task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -thr 0 -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
-            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -add ${str_pp}_T1_noise.nii.gz -thr 0 ${T1_nat_fout_wN_skull}"
+            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -thr 0 ${T1_nat_fout_wN_skull}"
 
             task_exec
             
@@ -2336,8 +2504,6 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         echo " Making fake healthy images done, skipping. " >> ${prep_log}
 
-        # need to define the output files here if we dont run the above if loop condition
-
     fi
 
 
@@ -2352,7 +2518,7 @@ else
     echo "The lesion patch is filled with 0s only, recon-all should be able to run, if it fails try without -E" >> ${prep_log}
     echo
 
-     if [[ -z "${srch_preprocp1}" ]]; then
+    if [[ -z "${srch_preprocp1}" ]]; then
 
             input="${prim}"
 
@@ -2452,15 +2618,15 @@ if [[ "${F_flag}" -eq 1 ]] ; then
 
     new_brain="${str_pp}_T1_Brain_4FS.mgz"
 
-    if [[ $(which hd-bet) ]]; then
+    # if [[ $(which hd-bet) ]]; then
 
-        hd_bet_flag=1
+    #     hd_bet_flag=1
 
-    else
+    # else
 
-        hd_bet_flag=""
+    #     hd_bet_flag=""
 
-    fi
+    # fi
 
 
     # need to define fs output dir to fit the KUL_NITs folder structure.
@@ -2478,32 +2644,9 @@ if [[ "${F_flag}" -eq 1 ]] ; then
         # if we can switch to fast-surf, would be great also
         # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
 
-        if [[ ${hd_bet_flag} == 1 ]] ; then 
+        # task_in="recon-all -i ${T1_4_FS} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all"
 
-            task_in="recon-all -i ${T1_4_FS} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1"
-
-            task_exec
-
-            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
-
-            task_exec
-
-            task_in="mri_mask ${FS_brain} ${T1_BM_4_FS} ${new_brain} && mv ${new_brain} ${fs_output}/${subj}/mri/brainmask.mgz && cp \
-            ${fs_output}/${subj}/mri/brainmask.mgz ${fs_output}/${subj}/mri/brainmask.auto.mgz"
-
-            task_exec
-
-            task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
-
-            task_exec
-
-        elif [[ ${hd_bet_flag} == 0 ]] ; then 
-
-            task_in="recon-all -i ${T1_4_FS} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all"
-
-            task_exec
-
-        fi
+        # task_exec
 
         task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
 
@@ -2569,6 +2712,12 @@ if [[ "${F_flag}" -eq 1 ]] ; then
     fs_parc_plusL_nii="${str_op}_aparc+aseg+Lesion.nii.gz"
 
     fs_lobes_plusL_nii="${str_op}_lobes_ctx_wm_fs+Lesion.nii.gz"
+
+    fs_parc_nii_LC="${str_op}_aparc_LC.nii.gz"
+
+    fs_parc_plusL_nii_LC="${str_op}_aparc+Lesion_LC.nii.gz"
+
+    fs_parc_minL_nii_LC="${str_op}_aparc_minL_LC.nii.gz"
 
     labelslength=${#labels[@]}
 
@@ -2642,6 +2791,14 @@ if [[ "${F_flag}" -eq 1 ]] ; then
 
         task_in="fslmaths ${fs_lobes_nii} -mas ${bmc_minL_conn} ${fs_lobes_minL_nii} && ImageMath 3 ${fs_lobes_plusL_nii} \
         addtozero ${fs_lobes_minL_nii} ${L_mask_reori_scaled}"
+
+        task_exec
+
+        task_in="labelconvert -force -nthreads ${ncpu} ${fs_parc_plusL_nii} ${function_path}/share/labelconvert/FreeSurferColorLUT+lesion.txt \
+        ${function_path}/share/labelconvert/fs_default+lesion.txt ${fs_parc_plusL_nii_LC} && labelconvert -force -nthreads ${ncpu} \
+        ${fs_parc_nii} ${FS_path1}/FreeSurferColorLUT.txt ${mrtrix_path}/share/mrtrix3/labelconvert/fs_default.txt ${fs_parc_nii_LC} \
+        && labelconvert -force -nthreads ${ncpu} ${fs_parc_minL_nii} ${FS_path1}/FreeSurferColorLUT.txt \
+        ${mrtrix_path}/share/mrtrix3/labelconvert/fs_default.txt ${fs_parc_nii_minL_LC}"
 
         task_exec
     

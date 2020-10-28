@@ -523,6 +523,7 @@ if [[  -z  ${function_path}  ]]; then
 else
 
     echo " VBG lives in ${function_path} "
+    echo " VBG lives in ${function_path} " >> ${prep log}
 
 fi
 #  the primary image is the noncontrast T1
@@ -1921,7 +1922,13 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
     ## Start of Script
 
-    echo " You are using VBG " >> ${prep_log}
+    echo " Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
+    Ahmed M. Radwan, Louise Emsell, Jeroen Blommaert, Andrey Zhylka, Silvia Kovacs, Tom Theys, Nico Sollmann, Patrick Dupont, Stefan Sunaert \
+    medRxiv 2020.09.30.20204701; doi: https://doi.org/10.1101/2020.09.30.20204701" >> ${prep_log}
+
+    echo " Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
+    Ahmed M. Radwan, Louise Emsell, Jeroen Blommaert, Andrey Zhylka, Silvia Kovacs, Tom Theys, Nico Sollmann, Patrick Dupont, Stefan Sunaert \
+    medRxiv 2020.09.30.20204701; doi: https://doi.org/10.1101/2020.09.30.20204701"
 
     echo "" >> ${prep_log}
 

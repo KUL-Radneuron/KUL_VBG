@@ -25,3 +25,51 @@ Optional:
 5- To run Freesurfer recon-all after the lesion filling is finished, specify the -F flag.
 6- Verbose mode = -v
 
+Examples:
+
+    - Using the unilateral VBG approach and HD-BET for brain extraction, input data is in BIDS format with only 1 session
+    KUL_VBG.sh -p pat001 -b -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -B 1
+    
+    - Using the bilateral VBG approach and HD-BET for brain extraction, input data is not in BIDS, FreeSurfer is also called at the end
+    KUL_VBG.sh -p pat001 -a /fullpath/sub-PT_T1w.nii.gz -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -t -B 1 -F
+	
+
+Purpose:
+
+    The purpose of this workflow is to generate a lesion filled image, with healthy looking synthetic tissue in place of the lesion
+    Essentially excising the lesion and grafting over the brain tissue defect in the MR image space
+    
+
+Required arguments:
+
+    -p:  BIDS participant name (anonymised name of the subject without the "sub-" prefix)
+    -b:  if data is in BIDS
+    -l:  full path and file name to lesion mask file per session
+    -z:  space of the lesion mask used (only T1 supported in this version)
+    -a:  Input precontrast T1WIs
+
+
+Optional arguments:
+
+    -s:  session (of the participant)
+    -t:  Use the VBG template to derive the fill patch (if set to 1, template tissue is used alongside native tissue to make the lesion fill)
+    -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
+    -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
+    -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
+    -P:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
+    -m:  full path to intermediate output dir
+    -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
+    -n:  number of cpu for parallelisation (default is 6)
+    -v:  show output from mrtrix commands
+    -h:  prints help menu
+
+Notes: 
+
+    - You can use -b and the script will find your BIDS files automatically
+    - If your data is not in BIDS, then use -a without -b
+    - This version is for validation only.
+    - In case of trouble with HD-BET see lines 1124 - 1200)
+    - cook_template_4VBG requires two brains with unilateral lesions on opposing sides
+    - it is meant to facilitate the grafting process and minimize intensity differences
+    - You need a high resolution T1 WI and a lesion mask in the same space for VBG to run
+    - If you end up with an empty image, it is possible you have a mismatch between the T1 and lesion mask

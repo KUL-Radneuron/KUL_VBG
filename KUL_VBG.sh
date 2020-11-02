@@ -517,15 +517,16 @@ FS_path1=($(which recon-all | rev | cut -d"/" -f3- | rev))
 
 if [[  -z  ${function_path}  ]]; then
 
-    echo "update function path to reflect funciton name line 388"
+    echo "update function path to reflect funciton name line 514"
     exit 2
 
 else
 
     echo " VBG lives in ${function_path} "
-    echo " VBG lives in ${function_path} " >> ${prep log}
+    echo " VBG lives in ${function_path} " >> ${prep_log}
 
 fi
+
 #  the primary image is the noncontrast T1
 
 prim=${T1_orig}

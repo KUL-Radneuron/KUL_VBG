@@ -1922,11 +1922,13 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
     ## Start of Script
 
-    echo " Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
+    echo " You are using VBG, please cite the following paper in your work: \
+    Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
     Ahmed M. Radwan, Louise Emsell, Jeroen Blommaert, Andrey Zhylka, Silvia Kovacs, Tom Theys, Nico Sollmann, Patrick Dupont, Stefan Sunaert \
     medRxiv 2020.09.30.20204701; doi: https://doi.org/10.1101/2020.09.30.20204701" >> ${prep_log}
 
-    echo " Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
+    echo " You are using VBG, please cite the following paper in your work: \
+    Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
     Ahmed M. Radwan, Louise Emsell, Jeroen Blommaert, Andrey Zhylka, Silvia Kovacs, Tom Theys, Nico Sollmann, Patrick Dupont, Stefan Sunaert \
     medRxiv 2020.09.30.20204701; doi: https://doi.org/10.1101/2020.09.30.20204701"
 

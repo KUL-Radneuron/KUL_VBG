@@ -100,7 +100,7 @@ Required arguments:
 Optional arguments:
 
     -s:  session (of the participant)
-    -t:  Use the VBG template to derive the fill patch (if set to 1, template tissue is used alongside native tissue to make the lesion fill)
+    -t:  Use the VBG template to derive the fill patch (if used, template tissue is used alongside native tissue to create the donor brain)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
     -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
@@ -1183,7 +1183,7 @@ function KUL_antsBETp {
 
         task_in="fslmaths ${output}_BrainExtractionMask.nii.gz -mul ${MNI_brain_pmask} -save ${output}_brain_mask_c_MNI1aff.nii.gz -restart \
         ${output}_BrainExtractionBrain.nii.gz -mul ${output}_brain_mask_c_MNI1aff.nii.gz ${output}_BrainExtractionBrain_c.nii.gz \
-        WarpImageMultiTransform 3 ${output}_BrainExtractionBrain_c.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat"
+        && WarpImageMultiTransform 3 ${output}_BrainExtractionBrain_c.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat"
 
         task_exec
 

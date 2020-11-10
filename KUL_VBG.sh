@@ -61,18 +61,13 @@ cat <<USAGE
 
 `basename $0` preps structural images with lesions and runs recon-all.
 
-Usage:
+Usage examples:
 
-    `basename $0` -p subject <OPT_ARGS> -l <OPT_ARGS> -z <OPT_ARGS> -b 
+    `basename $0` -p Subject_ID -l /fullpath/lesion_mask.nii.gz -z T1 -b -B (1 or 2)
   
     or
   
-    `basename $0` -p subject <OPT_ARGS> -a <OPT_ARGS> -b <OPT_ARGS> -c <OPT_ARGS> -l <OPT_ARGS> -z <OPT_ARGS>  
-  
-Examples:
-
-    `basename $0` -p pat001 -b -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output
-	
+    `basename $0` -p Subject_ID -a /fullpath/Subject_ID_T1w.nii.gz -l /fullpath/lesion_mask.nii.gz -z T1 -B (1 or 2) -n 10 -v 1
 
 Purpose:
 
@@ -100,7 +95,7 @@ Required arguments:
 Optional arguments:
 
     -s:  session (of the participant)
-    -t:  Use the VBG template to derive the fill patch (if set to 1, template tissue is used alongside native tissue to make the lesion fill)
+    -t:  Use the VBG template to derive the fill patch (if used, template tissue is used alongside native tissue to create the donor brain)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
     -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
@@ -116,7 +111,7 @@ Notes:
     - You can use -b and the script will find your BIDS files automatically
     - If your data is not in BIDS, then use -a without -b
     - This version is for validation only.
-    - In case of trouble with HD-BET see lines 1124 - 1200)
+    - In case of trouble with HD-BET see lines (1124 - 1200)
 
 
 
@@ -1153,7 +1148,7 @@ function KUL_antsBETp {
 
         # task_exec
 
-        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i"
+        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i -tta 0 -mode fast -s 1 -device cpu"
 
         task_exec
 
@@ -1183,7 +1178,7 @@ function KUL_antsBETp {
 
         task_in="fslmaths ${output}_BrainExtractionMask.nii.gz -mul ${MNI_brain_pmask} -save ${output}_brain_mask_c_MNI1aff.nii.gz -restart \
         ${output}_BrainExtractionBrain.nii.gz -mul ${output}_brain_mask_c_MNI1aff.nii.gz ${output}_BrainExtractionBrain_c.nii.gz \
-        WarpImageMultiTransform 3 ${output}_BrainExtractionBrain_c.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat"
+        && WarpImageMultiTransform 3 ${output}_BrainExtractionBrain_c.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat"
 
         task_exec
 
@@ -2025,6 +2020,21 @@ if [[ "${E_flag}" -eq 0 ]]; then
             echo "${clean_mask_nat}" >> ${prep_log}
 
             echo " ANTsBET already run, skipping " >> ${prep_log}
+
+        fi
+
+
+        # exit if theres a problem with brain extraction
+
+        if [[ -z "${T1_brain_clean}" ]]; then
+
+            echo " Brain extraction not successful, please see logs exiting"
+            echo " Brain extraction not successful, please see logs exiting" >> ${prep_log}
+            exit 2
+
+        else
+
+            echo " Brain extraction successful, carry on" >> ${prep_log}
 
         fi
 

@@ -7,13 +7,13 @@
 
 # this script is in dev for S61759
 
-# v 0.35 - dd 28/10/2020
+# v 0.37 - dd 17/11/2020
 
 
 #####################################
 
 
-v="0.35"
+v="0.37"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -2026,7 +2026,9 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         # exit if theres a problem with brain extraction
 
-        if [[ -z "${T1_brain_clean}" ]]; then
+        srch_antsBET2=($(find ${preproc} -type f | grep "${T1_brain_clean}"));
+
+        if [[ -z "${srch_antsBET2}" ]]; then
 
             echo " Brain extraction not successful, please see logs exiting"
             echo " Brain extraction not successful, please see logs exiting" >> ${prep_log}
@@ -2637,19 +2639,6 @@ if [[ "${F_flag}" -eq 1 ]] ; then
     FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
 
     new_brain="${str_pp}_T1_Brain_4FS.mgz"
-
-    # if [[ $(which hd-bet) ]]; then
-
-    #     hd_bet_flag=1
-
-    # else
-
-    #     hd_bet_flag=""
-
-    # fi
-
-
-    # need to define fs output dir to fit the KUL_NITs folder structure.
             
     if [[ -z "${search_wf_mark4}" ]]; then
 
@@ -2664,9 +2653,9 @@ if [[ "${F_flag}" -eq 1 ]] ; then
         # if we can switch to fast-surf, would be great also
         # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
 
-        # task_in="recon-all -i ${T1_4_FS} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all"
+        task_in="recon-all -i ${T1_4_FS} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all"
 
-        # task_exec
+        task_exec
 
         task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
 

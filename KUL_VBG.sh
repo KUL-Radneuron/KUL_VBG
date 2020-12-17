@@ -13,7 +13,7 @@
 #####################################
 
 
-v="0.37"
+v="0.38"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -889,7 +889,7 @@ T1_reori_mat="${str_pp}_T1_reori2std_matrix.mat"
 
 T1_reori_mat_inv="${str_pp}_T1_reori2std_matrix_inv.mat"
 
-T1_N4BFC="${str_pp}_T1_dn_bfc.nii.gz"
+T1_N4BFC="${str_pp}_T1_bfc.nii.gz"
 
 T1_N4BFC_inMNI1="${str_pp}_T1_dn_bfc_INMNI1.nii.gz"
 
@@ -1158,8 +1158,11 @@ function KUL_antsBETp {
 
         task_exec
 
-        task_in="WarpImageMultiTransform 3 ${output}_brain_c_MNI1aff.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat && fslmaths \
-        ${output}.nii.gz -thr 0.1 -bin ${clean_mask_nat}"
+        task_in="WarpImageMultiTransform 3 ${output}_brain_c_MNI1aff.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat \
+        && antsApplyTransforms -d 3 -i ${output}_brain_mask_c_hf_MNI1aff.nii.gz -o ${output}_brain_mask_clean_innat_lin.nii.gz -r ${prim_in} -t [${output}_aff_2_temp_0GenericAffine.mat,1] \
+        && fslmaths ${output}_brain_mask_clean_innat_lin.nii.gz -bin ${clean_mask_nat}"
+        # && ImageMath 3 ${output}_brain_mask_clean_innat_lin_FH.nii.gz FillHoles ${output}_brain_mask_clean_innat_lin.nii.gz \
+        
 
         task_exec
 
@@ -1944,19 +1947,32 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             # task_in="fslreorient2std -m ${T1_reori_mat} ${input} ${output1}"
 
+            # reorient images
+
             task_in="fslreorient2std ${input} ${output1} && fslreorient2std ${input} >> ${T1_reori_mat}"
 
             task_exec
 
+            input="${str_pp}_T1_reori2std.nii.gz"
+
+            unset output2
+
+            bias="${str_pp}_T1_bais1.nii.gz"
+
+            output="${T1_N4BFC}"
+
+            # N4BFC T1s
+            KUL_N4BFC
+
             # reorient T1s
 
-            input="${output1}"
+            input="${T1_N4BFC}"
 
             dn_model="Gaussian"
 
-            output2="${str_pp}_T1_dn.nii.gz"
+            output2="${str_pp}_T1_BFC_dn.nii.gz"
 
-            output=${output2}
+            output="${output2}"
 
             noise="${str_pp}_T1_noise.nii.gz"
 
@@ -1967,20 +1983,9 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             # to avoid failures with BFC due to negative pixel values
 
-            task_in="fslmaths ${output2} -thr 0 ${str_pp}_T1_dn_thr.nii.gz"
+            task_in="fslmaths ${output2} -thr 0 ${str_pp}_T1_BFC_dn_thr.nii.gz"
 
             task_exec
-
-            input="${str_pp}_T1_dn_thr.nii.gz"
-
-            unset output2
-
-            bias="${str_pp}_T1_bais1.nii.gz"
-
-            output="${T1_N4BFC}"
-
-            # N4BFC T1s
-            KUL_N4BFC
 
         else
 
@@ -1994,7 +1999,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             echo " running Brain extraction " >> ${prep_log}
 
-            prim_in="${T1_N4BFC}"
+            prim_in="${str_pp}_T1_BFC_dn_thr.nii.gz"
 
             output="${hdbet_str}"
 

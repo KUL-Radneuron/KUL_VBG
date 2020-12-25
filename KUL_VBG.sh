@@ -1521,14 +1521,14 @@ function KUL_Lmask_part2 {
         # create the tissue masks and punch the lesion out of them
 
         task_in="fslmaths ${str_pp}_atropos_priors_GMC+BG+CSF+WM_ready.nii.gz -thr $((ts+1)) -uthr $((ts+1)) -bin -mul ${NP_arr_rs[$ts]} -mas ${MNI_brain_mask} -bin -save ${NP_arr_rs_bin2[$ts]} -binv \
-        ${NP_arr_rs_binv2[$ts]} && mrthreshold -force -quiet -nthreads ${ncpu} -percentile 99 ${Atropos2_posts[$ts]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.2 -ge ${Atropos2_posts_bin2[$ts]} -force"
+        ${NP_arr_rs_binv2[$ts]} && mrthreshold -force -quiet -nthreads ${ncpu} -percentile 99.5 ${Atropos2_posts[$ts]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.5 -ge ${Atropos2_posts_bin2[$ts]} -force"
 
         task_exec
 
     done
 
     task_in="fslmaths ${str_pp}_atropos_priors_GMC+BG+CSF+WM_ready.nii.gz -thr 4 -uthr 4 -bin -mul ${NP_arr_rs[3]} -mas ${MNI_brain_mask} -bin -save ${str_pp}_atroposP_WM_rs_bin2.nii.gz -binv \
-    ${str_pp}_atroposP_WM_rs_binv2.nii.gz && mrthreshold -force -quiet -nthreads ${ncpu} -percentile 99 ${Atropos2_posts[3]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.2 -ge \
+    ${str_pp}_atroposP_WM_rs_binv2.nii.gz && mrthreshold -force -quiet -nthreads ${ncpu} -percentile 95 ${Atropos2_posts[3]} - | mrcalc - ${brain_mask_minL_inMNI1} -mult 0.2 -ge \
     ${str_pp}_atropos2_WM_bin2.nii.gz -force"
 
     task_exec
@@ -1559,9 +1559,24 @@ function KUL_Lmask_part2 {
     # we start with GMC as that is the most important class
     # add the CSF voxels, then add the GM-BG voxels, then finally the WM voxels
 
+    GM_omean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]})
+    
     CSF_max=$(mrstats -ignorezero -output max -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[0]})
 
-    CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]}` 0.2 -mul -force -quiet)
+    # if [[ ${CSF_omean} -ge ${GM_omean} ]]; then
+    if (( $(echo "${CSF_omax} >= ${GM_omean}" |bc -l) )); then
+
+        echo " Is this a postcontrast image? CSF max = ${CSF_omax}, GM mean = ${GM_omean}" | tee -a ${prep_log}
+
+        CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]}` 0.01 -mul -force -quiet)
+
+    else
+
+        echo " This is not a postcontrast image, CSF max = ${CSF_omax}, GM mean = ${GM_omean}" | tee -a ${prep_log}
+    
+        CSF_nmean="${CSF_max}"
+
+    fi
 
     # fix for CSF signal in case a post contrast input is used
 

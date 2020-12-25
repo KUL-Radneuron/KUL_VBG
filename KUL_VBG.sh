@@ -1564,7 +1564,7 @@ function KUL_Lmask_part2 {
     CSF_max=$(mrstats -ignorezero -output max -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[0]})
 
     # if [[ ${CSF_omean} -ge ${GM_omean} ]]; then
-    if (( $(echo "${CSF_omax} >= ${GM_omean}" |bc -l) )); then
+    if (( $(echo "${CSF_max} >= ${GM_omean}" |bc -l) )); then
 
         echo " Is this a postcontrast image? CSF max = ${CSF_omax}, GM mean = ${GM_omean}" | tee -a ${prep_log}
 

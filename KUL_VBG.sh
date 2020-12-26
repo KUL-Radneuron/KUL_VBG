@@ -1559,20 +1559,22 @@ function KUL_Lmask_part2 {
     # we start with GMC as that is the most important class
     # add the CSF voxels, then add the GM-BG voxels, then finally the WM voxels
 
-    GM_omean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]})
+    WM_omean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]})
     
     CSF_max=$(mrstats -ignorezero -output max -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[0]})
 
+    # correction for CSF in postcontrast images
+
     # if [[ ${CSF_omean} -ge ${GM_omean} ]]; then
-    if (( $(echo "${CSF_max} >= ${GM_omean}" |bc -l) )); then
+    if (( $(echo "${CSF_max} >= ${WM_omean}" |bc -l) )); then
 
-        echo " Is this a postcontrast image? CSF max = ${CSF_omax}, GM mean = ${GM_omean}" | tee -a ${prep_log}
+        echo " Is this a postcontrast image? CSF max = ${CSF_max}, WM mean = ${WM_omean}" | tee -a ${prep_log}
 
-        CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]}` 0.01 -mul -force -quiet)
+        CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.03 -mult -force -quiet)
 
-    else
+    elif (( $(echo "${CSF_max} < ${WM_omean}" |bc -l) )); then
 
-        echo " This is not a postcontrast image, CSF max = ${CSF_omax}, GM mean = ${GM_omean}" | tee -a ${prep_log}
+        echo " This is not a postcontrast image, CSF max = ${CSF_max}, WM mean = ${WM_omean}" | tee -a ${prep_log}
     
         CSF_nmean="${CSF_max}"
 
@@ -1589,31 +1591,42 @@ function KUL_Lmask_part2 {
     echo " Harcoded CSF and WM correction"
     echo " Harcoded CSF and WM correction" >> ${prep_log}
 
-    task_in="fslmaths ${MNI2_inT1_ntiss[0]} -div ${CSF_max} -mul ${CSF_nmean} ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+    # task_in="fslmaths ${MNI2_inT1_ntiss[0]} -div ${CSF_max} -mul ${CSF_nmean} ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+
+    task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[0]} ${CSF_max} -div ${CSF_nmean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 
     task_exec
 
-    MNI2_inT1_ntiss[0]="${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+    nMNI2_inT1_ntiss_sc2T1MNI1[0]="${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+    # MNI2_inT1_ntiss[0]="${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+
 
     # fi
 
-    GM_max=$(mrstats -ignorezero -output max -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]})
+    GM_omean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]})
 
     WM_nmean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]})
 
-    # if (( $(bc <<<"${GM_max} > ${WM_nmean}") )); then
+    # correction for WM in low quality scans
+
+    if (( $(echo "${GM_omean} >= ${WM_nmean}" |bc -l) )); then
+
+        WM_mamean=$(mrcalc ${GM_omean} 1.75 -mult -force -quiet)
 
         # echo " WM signal is too low, poor quality scan? correcting "
 
         # echo " WM signal is too low, poor quality scan? correcting " >> ${prep_log}
 
-    task_in="fslmaths ${MNI2_inT1_ntiss[3]} -div ${WM_nmean} -mul ${GM_max} -mul 1.2 ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+        # task_in="fslmaths ${MNI2_inT1_ntiss[3]} -div ${WM_nmean} -mul ${WM_mamean} ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
 
-    task_exec
+        task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[3]} ${WM_nmean} -div ${WM_mamean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
 
-    MNI2_inT1_ntiss[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+        task_exec
 
-    # fi
+        # MNI2_inT1_ntiss[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+        nMNI2_inT1_ntiss_sc2T1MNI1[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+
+    fi
 
     task_in="ImageMath 3 ${tmp_s2T1_nCSFGMC} addtozero ${nMNI2_inT1_ntiss_sc2T1MNI1[1]} ${nMNI2_inT1_ntiss_sc2T1MNI1[0]} && ImageMath 3 \
     ${tmp_s2T1_nCSFGMCB} addtozero ${tmp_s2T1_nCSFGMC} ${nMNI2_inT1_ntiss_sc2T1MNI1[2]} && ImageMath 3 ${tmp_s2T1_nCSFGMCBWM} addtozero ${tmp_s2T1_nCSFGMCB} ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}"

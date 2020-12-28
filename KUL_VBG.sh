@@ -13,7 +13,7 @@
 #####################################
 
 
-v="0.38"
+v="0.4"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -316,8 +316,9 @@ else
 
 fi
 
-echo " preproc dir is ${preproc} and output dir is ${output_d}"
-echo " preproc dir is ${preproc} and output dir is ${output_d}" >> ${prep_log}
+echo " Preproc dir is ${preproc} and output dir is ${output_d}" | tee -a ${prep_log}
+
+echo " You are using KUL_VBG.sh version ${v}" | tee -a ${prep_log}
 
 
 # deal with ncpu and itk ncpu
@@ -1565,43 +1566,29 @@ function KUL_Lmask_part2 {
 
     # correction for CSF in postcontrast images
 
-    # if [[ ${CSF_omean} -ge ${GM_omean} ]]; then
     if (( $(echo "${CSF_max} >= ${WM_omean}" |bc -l) )); then
 
         echo " Is this a postcontrast image? CSF max = ${CSF_max}, WM mean = ${WM_omean}" | tee -a ${prep_log}
 
         CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.03 -mult -force -quiet)
 
+        echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
+
     elif (( $(echo "${CSF_max} < ${WM_omean}" |bc -l) )); then
 
         echo " This is not a postcontrast image, CSF max = ${CSF_max}, WM mean = ${WM_omean}" | tee -a ${prep_log}
     
-        CSF_nmean="${CSF_max}"
+        CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.06 -mult -force -quiet)
+
+        echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
 
     fi
-
-    # fix for CSF signal in case a post contrast input is used
-
-    # if  (( $(bc <<<"${CSF_max} > ${CSF_nmean}") )); then
-
-    #     echo " CSF signal is too high, is this a postcontrast scan ? correcting"
-
-    #     echo " CSF signal is too high, is this a postcontrast scan ? correcting" >> ${prep_log}
-
-    echo " Harcoded CSF and WM correction"
-    echo " Harcoded CSF and WM correction" >> ${prep_log}
-
-    # task_in="fslmaths ${MNI2_inT1_ntiss[0]} -div ${CSF_max} -mul ${CSF_nmean} ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 
     task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[0]} ${CSF_max} -div ${CSF_nmean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 
     task_exec
 
     nMNI2_inT1_ntiss_sc2T1MNI1[0]="${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
-    # MNI2_inT1_ntiss[0]="${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
-
-
-    # fi
 
     GM_omean=$(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[1]})
 
@@ -1611,20 +1598,18 @@ function KUL_Lmask_part2 {
 
     if (( $(echo "${GM_omean} >= ${WM_nmean}" |bc -l) )); then
 
+        echo " Normalized WM tissue ${WM_nmean} has a lower mean than ${GM_omean} " | tee -a ${prep_log}
+        echo " This could be due to low image quality " | tee -a ${prep_log}
+
         WM_mamean=$(mrcalc ${GM_omean} 1.75 -mult -force -quiet)
-
-        # echo " WM signal is too low, poor quality scan? correcting "
-
-        # echo " WM signal is too low, poor quality scan? correcting " >> ${prep_log}
-
-        # task_in="fslmaths ${MNI2_inT1_ntiss[3]} -div ${WM_nmean} -mul ${WM_mamean} ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
 
         task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[3]} ${WM_nmean} -div ${WM_mamean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
 
         task_exec
 
-        # MNI2_inT1_ntiss[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
         nMNI2_inT1_ntiss_sc2T1MNI1[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+
+        echo " Normalized WM tissue will be rescaled to a new mean ${WM_mamean}, which is 1.75 x times the GM mean ${GM_omean} " | tee -a ${prep_log}
 
     fi
 
@@ -1647,15 +1632,9 @@ function KUL_Lmask_part2 {
     # we also need to reconstitute the target image it seems
     # this is done in line, using fslmaths and fslstats, we divide the real image by its mean and multiply it by the mean of the synth image
 
-    echo " is it bilateral -- ${bilateral} -- is it with a template flag -- ${t_flag} -- "
-
-    echo " is it bilateral -- ${bilateral} -- is it with a template flag -- ${t_flag} -- " >> ${prep_log}
-
     if [[ -z "${bilateral}" ]] && [[ "${t_flag}" -eq 0 ]]; then
 
-        echo " not bilateral -- ${bilateral} -- and no template flag -- ${t_flag} -- "
-
-        echo " not bilateral -- ${bilateral} -- and no template flag -- ${t_flag} -- " >> ${prep_log}
+        echo " Lesion is not bilateral ${bilateral} and no template flag is set " | tee -a ${prep_log}
 
         # if not bilateral, we do this using native tissue and template tissue
         
@@ -1727,15 +1706,7 @@ function KUL_Lmask_part2 {
 
     elif [[ ! -z "${bilateral}" ]] || [[ "${t_flag}" -eq 1 ]]; then
 
-        echo " yes bilateral -- ${bilateral} -- and - or template flag -- ${t_flag} -- " >> ${prep_log}
-
-        # if bilateral we do a simple(r) filling
-
-        # if bilateral we fill holes with the template image of the MNI2 step (which is deformed to match patient anatomy in MNI space)
-
-        # task_in="ImageMath 3 ${tmp_s2T1_CSFGMCBWMr} addtozero ${tmp_s2T1_CSFGMCBWM} ${MNI2_in_T1_scaled}"
-
-        # task_exec
+        echo " The lesion is bilateral  bil_flag = ${bilateral} and/or template flag is set temp_flag = ${t_flag} -- " >> ${prep_log}
 
         # similarly but no hemisphere work and no stitching
         # stitched_T1 and stitched_T1_nat are now fake ones

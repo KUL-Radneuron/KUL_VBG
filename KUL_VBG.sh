@@ -7,13 +7,10 @@
 
 # this script is in dev for S61759
 
-# v 0.37 - dd 17/11/2020
-
-
 #####################################
 
 
-v="0.4"
+v="0.45 - 29-12-2020"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -792,6 +789,10 @@ Lmask_in_T1_binv="${str_pp}_L_mask_in_T1_binv.nii.gz"
 
 Lmask_bin_s3="${str_pp}_Lmask_in_T1_bins3.nii.gz"
 
+Lmask_bin_s3_flat="${str_pp}_Lmask_in_T1_bins3_flat.nii.gz"
+
+Lmask_binv_s3_nobrain="${str_pp}_Lmask_in_T1_binvs3_nobrain.nii.gz"
+
 Lmask_binv_s3="${str_pp}_Lmask_in_T1_binvs3.nii.gz"
 
 brain_mask_minL="${str_pp}_antsBET_BrainMask_min_L.nii.gz"
@@ -960,21 +961,23 @@ T1fill2MNI1minL_str="${str_pp}_filledT12MNI1_brain_"
 
 T1_sti2fill_brain="${str_pp}_stitchT12filled_brain_Warped.nii.gz"
 
-T1fill2MNI1minL_brain="${str_pp}_filledT12MNI1_brain_Warped.nii.gz"
+T1_fin_Lfill_1="${str_pp}_T1_finL_fill_1.nii.gz"
 
-stiT1_synthT1_diff="${str_pp}_stitchT1synthT1_diff_map.nii.gz"
-
-filledT1_synthT1_diff="${str_pp}_filledT1synthT1_diff_map.nii.gz"
-
-T1_fin_Lfill="${str_pp}_T1_finL_fill.nii.gz"
+T1_fin_Lfill_2="${str_pp}_T1_finL_fill_2.nii.gz"
 
 T1_fin_filled="${str_pp}_T1_finL_filled.nii.gz"
 
-T1_nat_filled_out="${str_op}_T1_stdOri_filled.nii.gz"
+Lmask_binv_s3_n_ori="${str_pp}_Lmask_binv_s3_orig_ori.nii.gz"
 
-T1_nat_fout_wskull="${str_op}_T1_stdOri_filld_wskull.nii.gz"
+T1_fin_Lfill_n_ori="${str_pp}_T1_final_Lesion_fill.nii.gz"
 
-T1_nat_fout_wN_skull="${str_op}_T1_stdORI_filld_wN_skull.nii.gz"
+T1_nat_filled_out_1="${str_pp}_T1_stdOri_filled_1.nii.gz"
+
+T1_nat_fout_wskull_1="${str_pp}_T1_stdOri_filld_wskull_1.nii.gz"
+
+T1_nat_filled_out_2="${str_op}_T1_stdOri_filled.nii.gz"
+
+T1_nat_fout_wskull_2="${str_op}_T1_stdOri_filld_wskull.nii.gz"
 
 # vars for final output in input space
 
@@ -2402,9 +2405,11 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # warping nat filled (in case of unilat. lesion and place holder for initial filled)
         # will be used to fill holes in synth image
 
-        task_in="WarpImageMultiTransform 3 ${stitched_T1_nat} ${stitched_T1_nat_innat} -R ${T1_brain_clean} \
-        -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz && WarpImageMultiTransform 3 ${stitched_T1_temp} \
-        ${stitched_T1_temp_innat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
+        # task_in="WarpImageMultiTransform 3 ${stitched_T1_nat} ${stitched_T1_nat_innat} -R ${T1_brain_clean} \
+        # -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz && WarpImageMultiTransform 3 ${stitched_T1_temp} \
+        # ${stitched_T1_temp_innat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
+
+        task_in="WarpImageMultiTransform 3 ${stitched_T1_temp} ${stitched_T1_temp_innat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
 
         task_exec
 
@@ -2462,69 +2467,32 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         task_in="fslmaths ${str_pp}_donor_T1_native_S.nii.gz -div `mrstats -force -nthreads ${ncpu} -quiet -mask ${clean_mask_nat} -ignorezero -output mean ${str_pp}_donor_T1_native_S.nii.gz ` \
         -mul `mrstats -mask ${brain_mask_minL} -force -nthreads ${ncpu} -quiet -ignorezero -output mean ${T1_brain_clean} ` \
-        -save ${str_op}_donor_brain.nii.gz -mul ${Lmask_bin_s3} ${T1_fin_Lfill}"
+        -save ${str_op}_donor_brain.nii.gz -mul ${Lmask_bin_s3} ${T1_fin_Lfill_1}"
 
         task_exec
         
         # make the final outputs
+    
+        task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill_1} -thr 0 -save ${T1_nat_filled_out_1} -mul ${BET_mask_s2} \
+        -add ${T1_skull} -thr 0 ${T1_nat_fout_wskull_1} && ImageMath 3 ${T1_nat_filled_out_2} HistogramMatch ${T1_nat_filled_out_1} ${T1_orig} \
+        && ImageMath 3 ${T1_nat_fout_wskull_2} HistogramMatch ${T1_nat_fout_wskull_1} ${T1_orig} \
+        && fslmaths ${T1_nat_fout_wskull_2} -mul ${clean_mask_nat} ${T1_nat_filled_out_2}"
 
-        echo " is it bilateral -- ${bilateral} -- is it with a template flag -- ${t_flag} -- "
+        task_exec
 
-        echo " is it bilateral -- ${bilateral} -- is it with a template flag -- ${t_flag} -- " >> ${prep_log}
+        task_in="ImageMath 3 ${Lmask_bin_s3_flat} FlattenImage ${Lmask_bin_s3} 2 && fslmaths ${T1_nat_fout_wskull_2} -mul ${Lmask_bin_s3_flat} ${T1_fin_Lfill_2} \
+        && fslmaths ${clean_mask_nat} -mul 0 -add 1 -sub ${Lmask_bin_s3} ${Lmask_binv_s3_nobrain}"
+
+        task_exec
         
-        if [[ -z "${bilateral}" ]] && [[ "${t_flag}" -eq 0 ]]; then
+        task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
+        && flirt -in ${Lmask_binv_s3_nobrain} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+        && sleep 5 && flirt -in ${T1_fin_Lfill_2} -out ${T1_fin_Lfill_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+        && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+        && fslmaths ${T1_orig} -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
+        ${T1_Brain_4_FS}"
 
-            echo " not bilateral -- ${bilateral} -- and no template flag -- ${t_flag} -- "
-
-            echo " not bilateral -- ${bilateral} -- and no template flag -- ${t_flag} -- " >> ${prep_log}
-        
-            # if bilateral is empty, then we generate final output with stitched noise map
-        
-            image_in="${stitched_noise_MNI1}"
-
-            image_out="${stitched_noise_nat}"
-
-            task_in="WarpImageMultiTransform 3 ${image_in} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
-
-            task_exec
-
-            unset image_in image_out
-
-            # will need this here
-
-            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -thr 0 -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
-            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -thr 0 ${T1_nat_fout_wN_skull}"
-
-            task_exec
-        
-            task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 && flirt -in ${T1_nat_fout_wN_skull} -ref ${T1_orig} \
-            -out ${T1_4_FS} -applyxfm -init ${T1_reori_mat_inv} && sleep 5  && flirt -in ${T1_nat_filled_out} -ref ${T1_orig} -out ${T1_Brain_4_FS} \
-            -applyxfm -init ${T1_reori_mat_inv} && sleep 5 && fslmaths ${T1_Brain_4_FS} -bin ${T1_BM_4_FS}"
-
-            task_exec
-
-        elif [[ ! -z "${bilateral}" ]] || [[ "${t_flag}" -eq 1 ]]; then
-
-            echo " yes bilateral -- ${bilateral} -- and - or template flag -- ${t_flag} -- "
-
-            echo " yes bilateral -- ${bilateral} -- and - or template flag -- ${t_flag} -- " >> ${prep_log}
-        
-            # if bilateral is 1, then we generate final output with original noise map
-        
-            task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill} -thr 0 -save ${T1_nat_filled_out} -mul ${BET_mask_s2} \
-            -add ${T1_skull} -thr 0 -save ${T1_nat_fout_wskull} -thr 0 ${T1_nat_fout_wN_skull}"
-
-            task_exec
-            
-            task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 && flirt -in ${T1_nat_fout_wN_skull} -ref ${T1_orig} \
-            -out ${T1_4_FS} -applyxfm -init ${T1_reori_mat_inv} && sleep 5 && flirt -in ${T1_nat_filled_out} -ref ${T1_orig} -out ${T1_Brain_4_FS} \
-            -applyxfm -init ${T1_reori_mat_inv} && sleep 5 && fslmaths ${T1_Brain_4_FS} -bin ${T1_BM_4_FS}"
-
-            task_exec
-
-        fi
-
-
+        task_exec
 
     else
 
@@ -2603,18 +2571,18 @@ else
 
     # here we fill the lesion mask with 0 and save it where FS recon-all expects it to be
 
-    task_in="fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${L_O_binv} ${T1_nat_fout_wN_skull}"
+    task_in="fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${L_O_binv} ${T1_nat_fout_wskull_2}"
 
     task_exec
 
-    task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 && flirt -in ${T1_nat_fout_wN_skull} -ref ${T1_orig} \
-    -out ${T1_4_FS} -applyxfm -init ${T1_reori_mat_inv} && sleep 5  && flirt -in ${T1_brain_clean} -ref ${T1_orig} -out ${T1_Brain_4_FS} \
-    -applyxfm -init ${T1_reori_mat_inv} && sleep 5 && fslmaths ${T1_Brain_4_FS} -bin -save ${T1_BM_4_FS} -restart ${T1_4_FS} -mas ${T1_BM_4_FS} \
+    task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
+    && flirt -in ${L_O_binv} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+    && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+    && fslmaths ${T1_orig} -mul ${Lmask_binv_s3_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
     ${T1_Brain_4_FS}"
 
     task_exec
 
-        
 fi
 
 

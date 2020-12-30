@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.45 - 29-12-2020"
+v="0.46 - 30-12-2020"
 # change version when finished with dev to 1.0
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
@@ -1567,25 +1567,21 @@ function KUL_Lmask_part2 {
     
     CSF_max=$(mrstats -ignorezero -output max -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[0]})
 
-    # correction for CSF in postcontrast images
+    # correction for CSF in postcontrast images (seems like this is needed in general)
 
     if (( $(echo "${CSF_max} >= ${WM_omean}" |bc -l) )); then
 
         echo " Is this a postcontrast image? CSF max = ${CSF_max}, WM mean = ${WM_omean}" | tee -a ${prep_log}
 
-        CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.03 -mult -force -quiet)
-
-        echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
-
     elif (( $(echo "${CSF_max} < ${WM_omean}" |bc -l) )); then
 
         echo " This is not a postcontrast image, CSF max = ${CSF_max}, WM mean = ${WM_omean}" | tee -a ${prep_log}
-    
-        CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.06 -mult -force -quiet)
-
-        echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
 
     fi
+
+    CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.001 -mult -force -quiet)
+
+    echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
 
     task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[0]} ${CSF_max} -div ${CSF_nmean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 

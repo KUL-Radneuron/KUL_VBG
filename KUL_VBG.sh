@@ -10,36 +10,13 @@
 #####################################
 
 
-v="0.46 - 30-12-2020"
-# change version when finished with dev to 1.0
+v="0.47 - 02-01-2021"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
-# It is not a final end-all solution but a rather crude and simplistic work around 
-# The main idea is to replace the lesion with a hole and fill the hole with information from the normal hemisphere 
-# maintains subject specificity and diseased hemisphere information but replaces lesion tissue with sham brain 
-# should be followed by a loop calculating overlap between fake labels from sham brain with actual lesion 
+# The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
+# this maintains subject specificity and diseased hemisphere information but replaces lesioned tissue with sham brain 
 # to do:
 # (1) Add option for FreeSurfer or FastSurfer ;)
-
-# Description:
-# 1 - Denoise all inputs with ants in native space and save noise maps
-# 2 - N4 bias field correction and save the bias image as bias1
-# 3 - Affine reg T2/FLAIR to T1 
-# 4 - Dual channel antsBET in native space, generate T2 brain, L_mask_bin, L_mask_binv and brain_mask_min_L
-# 5 - Flip brains in native space + brain_mask_min_L and L_mask_binv and warp orig (antsRegSyN.sh -t a/s? to MNI)
-# 6 - antsRegSyN.sh -t s flipped_T1 to orig_T1_in_MNI using brain_mask_min_L and fbrain_mask_min_L
-# 7 - antsRegSyN.sh -t so output_step_6 to MNI using fbrain_mask_min_L
-# 8 - make T1 and T2 hole and fill with patch from fT1 and fT2 (output_step_7) all in MNI space
-# 9 - antsRegSyN.sh -t so output_step_8 to orig_T1 in MNI (using inverse warp from step_6 for the unflipped ims)
-# 10 - dual channel antsAtroposN4.sh with -r [0.2,1,1,1] and -w 0.5 (atropos1)
-# 11 - Warp output_step_9 to (maybe a bilateral healthy brain crude scenario or the original - lesion included - brain)
-# 12 - dual channel antsAtroposN4.sh with -r [0.2,1,1,1] and -w 0.1 (atropos2) using brain_mask_min_L
-# 13 - Apply warps from step 11 to out_step_10 
-# 14 - replace lesion patch from Atropos2 maps with Atropos1 patches
-# 15 - Run for loop for modalities to populate lesion patch with mean intensity values per tissue type
-# 16 - run recon-all/antsJLF and calculate the lesion overlap with tissue types, make report, quit.
-
-# will generate better RL and priors for the new MNI HRT1 template from FS (running it now 11/08/2019 @ 13:23)
 
 # ----------------------------------- MAIN --------------------------------------------- 
 # this script uses "preprocessing control", i.e. if some steps are already processed it will skip these
@@ -1474,7 +1451,7 @@ function KUL_Lmask_part2 {
 
         task_exec
 
-        task_in="mrcalc -force -nthreads ${ncpu} ${NP_arr_rs[$ts]} 0.2 -ge ${str_pp}_atropos_${tissues[$ts]}_rs_thr.nii.gz"
+        task_in="mrcalc -force -nthreads ${ncpu} ${NP_arr_rs[$ts]} 0.1 -ge ${str_pp}_atropos_${tissues[$ts]}_rs_thr.nii.gz"
 
         task_exec
 
@@ -1583,7 +1560,9 @@ function KUL_Lmask_part2 {
 
     echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
 
-    task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[0]} ${CSF_max} -div ${CSF_nmean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+    # task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[0]} ${CSF_max} -div ${CSF_nmean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
+
+    task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[0]} 0 -gt 0.2 -mult ${str_pp}_nMNI2_inT1_linsc_norm_nCSF_cor.nii.gz"
 
     task_exec
 
@@ -1943,11 +1922,12 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             output1="${str_pp}_T1_reori2std.nii.gz"
 
-            # task_in="fslreorient2std -m ${T1_reori_mat} ${input} ${output1}"
+            # inserted rescaling step 31/12/2020
+            task_in="fslmaths ${input} -thr 0.5 ${str_pp}_T1_thr.nii.gz"
 
-            # reorient images
+            task_exec
 
-            task_in="fslreorient2std ${input} ${output1} && fslreorient2std ${input} >> ${T1_reori_mat}"
+            task_in="fslreorient2std ${str_pp}_T1_thr.nii.gz ${output1} && fslreorient2std ${input} >> ${T1_reori_mat}"
 
             task_exec
 
@@ -2470,8 +2450,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # make the final outputs
     
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill_1} -thr 0 -save ${T1_nat_filled_out_1} -mul ${BET_mask_s2} \
-        -add ${T1_skull} -thr 0 ${T1_nat_fout_wskull_1} && ImageMath 3 ${T1_nat_filled_out_2} HistogramMatch ${T1_nat_filled_out_1} ${T1_orig} \
-        && ImageMath 3 ${T1_nat_fout_wskull_2} HistogramMatch ${T1_nat_fout_wskull_1} ${T1_orig} \
+        -add ${T1_skull} -thr 0 ${T1_nat_fout_wskull_1} && ImageMath 3 ${T1_nat_filled_out_2} HistogramMatch ${T1_nat_filled_out_1} ${str_pp}_T1_thr.nii.gz \
+        && ImageMath 3 ${T1_nat_fout_wskull_2} HistogramMatch ${T1_nat_fout_wskull_1} ${str_pp}_T1_thr.nii.gz \
         && fslmaths ${T1_nat_fout_wskull_2} -mul ${clean_mask_nat} ${T1_nat_filled_out_2}"
 
         task_exec
@@ -2485,7 +2465,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         && flirt -in ${Lmask_binv_s3_nobrain} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
         && sleep 5 && flirt -in ${T1_fin_Lfill_2} -out ${T1_fin_Lfill_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
         && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        && fslmaths ${T1_orig} -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
+        && fslmaths ${str_pp}_T1_thr.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
         ${T1_Brain_4_FS}"
 
         task_exec

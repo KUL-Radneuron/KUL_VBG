@@ -384,9 +384,6 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 	if [[ "$num_sessions" -eq 1 ]]; then 
 			
 		echo " One session " $ses " specified in BIDS dir, good."
-		# now we need to search for the images
-		# here we also need to search for the images
-		# then also find which modalities are available and set wf accordingly
 		
 		search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));

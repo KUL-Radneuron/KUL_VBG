@@ -168,6 +168,13 @@ function task_exec {
 
 }
 
+# please cite us
+
+echo " You are using the cook template script, part of the VBG package, please cite the following paper in your work: \
+Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions \
+Ahmed M. Radwan, Louise Emsell, Jeroen Blommaert, Andrey Zhylka, Silvia Kovacs, Tom Theys, Nico Sollmann, Patrick Dupont, Stefan Sunaert \
+medRxiv 2020.09.30.20204701; doi: https://doi.org/10.1016/j.neuroimage.2021.117731" | tee -a ${prep_log}
+
 # 1- HDBET both T1s and use warps to get to MNI
 
 # task_in="antsBrainExtraction.sh -d 3 -a ${T1_L} -e ${MNI_T1} -m ${MNI_brain_mask} -u 1 -o ${HDBET_L}_"

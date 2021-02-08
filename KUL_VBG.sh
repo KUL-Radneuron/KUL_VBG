@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.47 - 02-01-2021"
+v="0.48_08022021"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -75,7 +75,7 @@ Optional arguments:
     -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
     -P:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
-    -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
+    -o:  full path to output dir (if not set reverts to default output ./VBG_output)
     -n:  number of cpu for parallelisation (default is 6)
     -v:  show output from mrtrix commands
     -h:  prints help menu
@@ -202,7 +202,7 @@ else
 
 fi
 
-lesion_wf="${cwd}/lesion_wf"
+lesion_wf="${cwd}/VBG_out"
 
 # output
 
@@ -210,11 +210,11 @@ if [[ "$o_flag" -eq 1 ]]; then
 	
     output_m="${out_dir}"
 
-    output_d="${output_m}/sub-${subj}${ses_long}"
+    output_d="${output_m}/output_VBG/sub-${subj}${ses_long}"
 
 else
 
-	output_d="${lesion_wf}/output_LWF/sub-${subj}${ses_long}"
+	output_d="${lesion_wf}/output_VBG/sub-${subj}${ses_long}"
 
 fi
 
@@ -224,11 +224,11 @@ if [[ "$m_flag" -eq 1 ]]; then
 
 	preproc_m="${wf_dir}"
 
-    preproc="${preproc_m}/sub-${subj}${ses_long}"
+    preproc="${preproc_m}/proc_VBG/sub-${subj}${ses_long}"
 
 else
 
-	preproc="${lesion_wf}/proc_LWF/sub-${subj}${ses_long}"
+	preproc="${lesion_wf}/proc_VBG/sub-${subj}${ses_long}"
 
 fi
 
@@ -253,54 +253,7 @@ bids_subj=${long_bids_subj%anat}
 
 echo $bids_subj
 
-# echo $lesion_wf
-
-ROIs="${output_d}/sub-${subj}${ses_long}/ROIs"
-	
-overlap="${output_d}/sub-${subj}${ses_long}/overlap"
-
-#####
-
-# make your dirs
-
-mkdir -p ${preproc_m} >/dev/null 2>&1
-
-mkdir -p ${output_m} >/dev/null 2>&1
-
-mkdir -p ${preproc} >/dev/null 2>&1
-
-mkdir -p ${output_d} >/dev/null 2>&1
-
-mkdir -p ${ROIs} >/dev/null 2>&1
-
-mkdir -p ${overlap} >/dev/null 2>&1
-
-
-# make your log file
-
-prep_log="${preproc}/prep_log_${d}.txt";
-
-if [[ ! -f ${prep_log} ]] ; then
-
-    touch ${prep_log}
-
-else
-
-    echo "${prep_log} already created"
-
-fi
-
-echo " Preproc dir is ${preproc} and output dir is ${output_d}" | tee -a ${prep_log}
-
-echo " You are using KUL_VBG.sh version ${v}" | tee -a ${prep_log}
-
-
-# deal with ncpu and itk ncpu
-
-# itk default ncpu for antsRegistration
-itk_ncpu="export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${ncpu}"
-export $itk_ncpu
-silent=1
+######
 
 # check for required inputs and define your workflow accordingly
 
@@ -364,7 +317,7 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 			exit 2
 				
 		fi
-			
+
 	else 
 			
 		echo " There is a problem with sessions in BIDS dir. "
@@ -372,7 +325,10 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 		exit 2
 			
 	fi
-		
+
+    preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
+    output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+
 elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 		
 	# this is fine
@@ -406,6 +362,8 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 
     fi
 
+    preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
+    output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
 
 elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 
@@ -437,6 +395,58 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 	exit 2
 		
 fi
+
+
+######
+
+ROIs="${output_d}/sub-${subj}${ses_long}/ROIs"
+	
+overlap="${output_d}/sub-${subj}${ses_long}/overlap"
+
+#####
+
+# make your dirs
+
+mkdir -p ${preproc_m} >/dev/null 2>&1
+
+mkdir -p ${output_m} >/dev/null 2>&1
+
+mkdir -p ${preproc} >/dev/null 2>&1
+
+mkdir -p ${output_d} >/dev/null 2>&1
+
+mkdir -p ${ROIs} >/dev/null 2>&1
+
+mkdir -p ${overlap} >/dev/null 2>&1
+
+
+# make your log file
+
+prep_log="${preproc}/KUL_VBG_prep_log_${d}.txt";
+
+if [[ ! -f ${prep_log} ]] ; then
+
+    touch ${prep_log}
+
+else
+
+    echo "${prep_log} already created"
+
+fi
+
+echo " Preproc dir is ${preproc} and output dir is ${output_d}" | tee -a ${prep_log}
+
+echo " You are using KUL_VBG.sh version ${v}" | tee -a ${prep_log}
+
+
+# deal with ncpu and itk ncpu
+
+# itk default ncpu for antsRegistration
+itk_ncpu="export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${ncpu}"
+export $itk_ncpu
+silent=1
+
+# decide on BET method
 
 if [[ -z "${BET_flag}" ]]; then
 
@@ -533,8 +543,8 @@ else
 
 fi
 
-echo "KUL_lesion_WF @ ${d} with parent pid $$ "
-echo "KUL_lesion_WF @ ${d} with parent pid $$ " >> ${prep_log}
+echo "KUL_VBG @ ${d} with parent pid $$ "
+echo "KUL_VBG @ ${d} with parent pid $$ " >> ${prep_log}
 
 # --- MAIN ----------------
 # Start with your Vars for Part 1
@@ -2564,13 +2574,21 @@ fi
 # for recon-all
 
 if [[ "${F_flag}" -eq 1 ]] ; then
-	
+
     echo
     echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >&2
     echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >> ${prep_log}
     echo
-	
-    fs_output="${str_op}_FS_output/sub-${subj}"
+
+    if [[ "$bids_flag" -eq 1 ]]; then
+
+        fs_output="${cwd}/BIDS/derivatives/freesurfer/sub-${subj}"
+
+    else
+
+        fs_output="${str_op}_FS_output/sub-${subj}"
+
+    fi
 
     recall_scripts="${fs_output}/${subj}/scripts"
 
@@ -2579,7 +2597,7 @@ if [[ "${F_flag}" -eq 1 ]] ; then
     FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
 
     new_brain="${str_pp}_T1_Brain_4FS.mgz"
-            
+
     if [[ -z "${search_wf_mark4}" ]]; then
 
         task_in="mkdir -p ${fs_output} >/dev/null 2>&1"

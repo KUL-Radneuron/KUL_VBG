@@ -326,8 +326,17 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 			
 	fi
 
-    preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
-    output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+    if [[ "$o_flag" -eq 0 ]]; then
+
+        output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+
+    fi
+
+    if [[ "$m_flag" -eq 0 ]]; then
+
+        preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
+
+    fi
 
 elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 		
@@ -362,8 +371,17 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 
     fi
 
-    preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
-    output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+    if [[ "$o_flag" -eq 0 ]]; then
+
+        output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+
+    fi
+
+    if [[ "$m_flag" -eq 0 ]]; then
+
+        preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
+
+    fi
 
 elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 
@@ -2580,7 +2598,7 @@ if [[ "${F_flag}" -eq 1 ]] ; then
     echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >> ${prep_log}
     echo
 
-    if [[ "$bids_flag" -eq 1 ]]; then
+    if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
 
         fs_output="${cwd}/BIDS/derivatives/freesurfer/sub-${subj}"
 

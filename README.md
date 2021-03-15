@@ -4,12 +4,12 @@ VBG is a bash script tested in Mac OSX, Ubuntu 18.0 and CentOS.
 
 The first commit on this repository corresponds to the version of the workflow used in the preprint "Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions. Radwan et al., 2020, DOI: https://doi.org/10.1101/2020.09.30.20204701, available via: https://www.medrxiv.org/content/10.1101/2020.09.30.20204701v1). This work was published in Neuroimage, 2021 available here: https://doi.org/10.1016/j.neuroimage.2021.117731
 
-Dependencies:
-a) ANTs and ANTsX scripts
-b) FSL
-c) MRtrix3
+**Updated Dependencies:**
+a) ANTs v2.3.1 and ANTsX scripts
+b) FSL v6.0
+c) MRtrix3 v3.0.2-64-g3eadb340
 d) HD-BET
-f) Freesurfer
+f) Freesurfer v6.0
 
 Inputs:
 

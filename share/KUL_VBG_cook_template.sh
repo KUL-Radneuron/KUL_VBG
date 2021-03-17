@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -x
+set -x
 
 # Intro:
 # - This script will cook a template for VBG specific to your population
@@ -32,7 +32,7 @@
 # Misc. vars
 # change me to suit your CPU :)
 
-ncpu=16
+ncpu=24
 
 d=$(date "+%Y-%m-%d_%H-%M-%S");
 
@@ -43,10 +43,16 @@ wkdir="${cwd}/VBG_cook_temp"
 outdir="${cwd}/VBG_cooked_temp"
 
 ###### CHANGE ME #### CHANGE ME
+# T1_R is the one with a healthy right side
+# T1_L is the one with a healthy left side
 
-T1_R="${cwd}/sub-001_T1w.nii.gz"
+# T1_R="${cwd}/sub-001_T1w.nii.gz"
 
-T1_L="${cwd}/sub-001_T1w_F11.nii.gz"
+# T1_L="${cwd}/sub-001_T1w_F11.nii.gz"
+
+T1_R="/NI_apps/KUL_VBG/share/Test_data/Pats/sub-PT010/sub-PT010_T1w_defaced.nii.gz"
+
+T1_L="/NI_apps/KUL_VBG/share/Test_data/Pats/sub-PT012/sub-PT012_T1w_defaced.nii.gz"
 
 ###### CHANGE ME #### CHANGE ME
 
@@ -86,7 +92,7 @@ MNI_l="${temps_dir}/atlasses/Templates/Lt_hemi_mask.nii.gz"
 
 # Workflow vars
 
-T1_Rf="${wkdir}/sub-PT024_T1w_flipped.nii.gz"
+# T1_Rf="${wkdir}/sub-PT024_T1w_flipped.nii.gz"
 
 HDBET_L="${wkdir}/T1_L_HDBET"
 
@@ -187,7 +193,7 @@ task_in="hd-bet -i ${T1_L} -o ${HDBET_L}_brain"
 
 task_exec
 
-task_in="hd-bet -i ${T1_R} -o ${HDBET_R}_brain.nii.gz"
+task_in="hd-bet -i ${T1_R} -o ${HDBET_R}_brain"
 
 task_exec
 

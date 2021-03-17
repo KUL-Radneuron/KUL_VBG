@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.48_08022021"
+v="0.48_17032021"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -280,8 +280,9 @@ else
     else
 	
 	    echo "Inputs are -p  ${subj}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}"
-        echo "Inputs are -p  ${subj}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}" >> ${prep_log}
-        
+        echo "Inputs are -p  ${subj}  -lesion  ${L_mask}  -lesion_space  ${L_mask_space}"
+
+
     fi
 	
 fi
@@ -309,7 +310,6 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 				
 			T1_orig=$search_T1
 			echo " We found T1 WIs ${T1_orig}"
-            echo " We found T1 WIs ${T1_orig}" >> ${prep_log}
 				
 		else
 				
@@ -358,8 +358,7 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 			
 			T1_orig=$search_T1;
 
-			echo " We found T1 WIs " $T1_orig
-            echo " We found T1 WIs ${T1_orig}" >> ${prep_log}
+            echo " We found T1 WIs ${T1_orig}"
 			
 		else
 			
@@ -395,7 +394,6 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 0 ]]; then
 		T1_orig=$t1_orig
 
         echo " T1 images provided as ${t1_orig} "
-        echo " We found T1 WIs ${T1_orig}" >> ${prep_log}
 		
     else
 

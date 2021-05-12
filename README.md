@@ -14,7 +14,7 @@ f) Freesurfer v6.0
 Inputs:
 
 Obligatory: 
-1- Input to -p flag (participant name in BIDS convetion, without the leading sub-). 
+1- Input to -S flag (subject/participant name in BIDS convetion, without the leading sub-). 
 2- A nifti format T1 WI of a subject (input to -a flag)
 3- Binary lesion mask (lesion = 1, background = 0) integer nifti format (input to -l flag)
 4- Indicate lesion mask space (input to -z flag) N.B. the specified lesion mask must have the same dimensions and transform as the input T1 WI.
@@ -23,8 +23,8 @@ Optional:
 1- Specify location of intermediate processing and output folders (-m and -o flags)
 2- Specify number of parallel workers used (input to -n flag)
 3- Specify type of filling (default = uVBG, to activate bVBG use the -t flag)
-4- Specify age group of participant (default = adult, to activate pediatric friendly mode specify the -P flag)
-5- To run Freesurfer recon-all after the lesion filling is finished, specify the -F flag.
+4- Specify age group of participant (default = adult, to activate pediatric friendly mode specify the -p flag)
+5- To run parcellation specify the after the lesion filling is finished, specify the -P flag with input 1 for Freesurfer recon-all and 2 for FastSurfer.
 6- Verbose mode = -v
 
 Examples:
@@ -44,7 +44,7 @@ Purpose:
 
 Required arguments:
 
-    -p:  BIDS participant name (anonymised name of the subject without the "sub-" prefix)
+    -S:  BIDS participant name (anonymised name of the subject without the "sub-" prefix)
     -b:  if data is in BIDS
     -l:  full path and file name to lesion mask file per session
     -z:  space of the lesion mask used (only T1 supported in this version)
@@ -57,8 +57,8 @@ Optional arguments:
     -t:  Use the VBG template to derive the fill patch (if used, template tissue is used alongside native tissue to create the donor brain)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
-    -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
-    -P:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
+    -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer)
+    -p:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
     -n:  number of cpu for parallelisation (default is 6)

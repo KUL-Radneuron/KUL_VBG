@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.48_17032021"
+v="0.5_12052021"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -72,7 +72,7 @@ Optional arguments:
     -t:  Use the VBG template to derive the fill patch (if used, template tissue is used alongside native tissue to create the donor brain)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
-    -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer, 3 = MALP-EM, 4 = Quick parcellation)
+    -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer)
     -p:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./VBG_output)

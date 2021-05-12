@@ -59,7 +59,7 @@ How to use:
 
 Required arguments:
 
-    -p:  BIDS participant name (anonymised name of the subject without the "sub-" prefix)
+    -S:  BIDS subject/participant name (anonymised name of the subject without the "sub-" prefix)
     -b:  if data is in BIDS
     -l:  full path and file name to lesion mask file per session
     -z:  space of the lesion mask used (only T1 supported in this version)
@@ -72,8 +72,8 @@ Optional arguments:
     -t:  Use the VBG template to derive the fill patch (if used, template tissue is used alongside native tissue to create the donor brain)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
-    -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
-    -P:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
+    -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer, 3 = MALP-EM, 4 = Quick parcellation)
+    -p:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./VBG_output)
     -n:  number of cpu for parallelisation (default is 6)
@@ -103,7 +103,7 @@ ncpu=8
 
 
 # Set required options
-p_flag=0
+S_flag=0
 b_flag=0
 s_flag=0
 l_flag=0
@@ -113,9 +113,9 @@ t_flag=0
 o_flag=0
 m_flag=0
 n_flag=0
-F_flag=0
-E_flag=0
 P_flag=0
+E_flag=0
+p_flag=0
 
 if [ "$#" -lt 1 ]; then
     Usage >&2
@@ -123,11 +123,11 @@ if [ "$#" -lt 1 ]; then
 
 else
 
-    while getopts "p:a:l:z:s:o:m:n:B:bvhtFEP" OPT; do
+    while getopts "S:a:l:z:s:o:m:n:B:P:bvhtEp" OPT; do
 
         case $OPT in
-        p) #subject
-            p_flag=1
+        S) #subject
+            S_flag=1
             subj=$OPTARG
         ;;
         b) #BIDS or not ?
@@ -164,14 +164,15 @@ else
         t) #template flag
 			t_flag=1	
         ;;
-        F) #FS recon-all flag
-			F_flag=1	
+        P) #Parcellation flag
+			P_flag=1
+            parc_F=$OPTARG
         ;;
         E) #Extra-axial flag
 			E_flag=1	
         ;;
-        P) #Extra-axial flag
-			P_flag=1	
+        p) #Extra-axial flag
+			p_flag=1	
         ;;
         n) #parallel
 			n_flag=1
@@ -261,7 +262,7 @@ srch_Lmask_str=($(basename ${L_mask}))
 srch_Lmask_dir=($(dirname ${L_mask}))
 srch_Lmask_o=($(find ${srch_Lmask_dir} -type f | grep  ${srch_Lmask_str}))
 
-if [[ $p_flag -eq 0 ]] || [[ $l_flag -eq 0 ]] || [[ $l_spaceflag -eq 0 ]]; then
+if [[ $S_flag -eq 0 ]] || [[ $l_flag -eq 0 ]] || [[ $l_spaceflag -eq 0 ]]; then
 	
     echo
     echo "Inputs -p -lesion -lesion_space must be set." >&2
@@ -504,7 +505,7 @@ else
 fi
 
 # set this manually for debugging
-function_path=($(which KUL_VBG.sh | rev | cut -d"/" -f2- | rev))
+function_path=($(which KUL_VBG_2_1.sh | rev | cut -d"/" -f2- | rev))
 mrtrix_path=($(which mrmath | rev | cut -d"/" -f3- | rev))
 FS_path1=($(which recon-all | rev | cut -d"/" -f3- | rev))
 
@@ -578,75 +579,75 @@ echo "KUL_VBG @ ${d} with parent pid $$ " >> ${prep_log}
 # check which template to use based on
 # is this a pediatric or adult brain and whether we use donor tissue or not
 
-if [[ "${P_flag}" -eq 1 ]] && [[ "${t_flag}" -eq 0 ]]; then
+if [[ "${p_flag}" -eq 1 ]] && [[ "${t_flag}" -eq 0 ]]; then
     # ADJUST TEMPLATES FOR NKI10U IF P=1 T=0
 
     echo "Working with default pediatric template and priors"
     echo "Working with default pediatric template and priors" >> ${prep_log}
 
-    MNI_T1="${function_path}/atlasses/Templates/VBG_"
+    MNI_T1="${function_path}/atlasses/Templates_update/VBG_"
 
-    MNI_T1_brain="${function_path}/atlasses/Templates/NKI10u_temp_brain.nii.gz"
+    MNI_T1_brain="${function_path}/atlasses/Templates_update/NKI10u_temp_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/NKI10u_temp_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates_update/NKI10u_temp_brain_mask.nii.gz"
 
-    MNI_brain_pmask="${function_path}/atlasses/Templates/ped_PBEM.nii.gz"
+    MNI_brain_pmask="${function_path}/atlasses/Templates_update/ped_PBEM.nii.gz"
 
-    MNI_brain_emask="${function_path}/atlasses/Templates/ped_BET_mask.nii.gz"
+    MNI_brain_emask="${function_path}/atlasses/Templates_update/ped_BET_mask.nii.gz"
 
-    new_priors="${function_path}/atlasses/Templates/priors/NKI10U_Prior_%d.nii.gz"
+    new_priors="${function_path}/atlasses/Templates_update/priors/NKI10U_Prior_%d.nii.gz"
 
-elif [[ "${P_flag}" -eq 1 ]] && [[ "${t_flag}" -eq 1 ]]; then
+elif [[ "${p_flag}" -eq 1 ]] && [[ "${t_flag}" -eq 1 ]]; then
     # ADJUST TEMPLATES FOR VBG_PED IF P=1 T=1
 
     echo "Working with cooked template and priors"
     echo "Working with cooked template and priors" >> ${prep_log}
 
-    MNI_T1="${function_path}/atlasses/Templates/VBG_T1_temp_ped.nii.gz"
+    MNI_T1="${function_path}/atlasses/Templates_update/VBG_T1_temp_ped.nii.gz"
 
-    MNI_T1_brain="${function_path}/atlasses/Templates/VBG_T1_temp_ped_brain.nii.gz"
+    MNI_T1_brain="${function_path}/atlasses/Templates_update/VBG_T1_temp_ped_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/VBG_T1_temp_ped_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates_update/VBG_T1_temp_ped_brain_mask.nii.gz"
 
-    MNI_brain_pmask="${function_path}/atlasses/Templates/ped_PBEM.nii.gz"
+    MNI_brain_pmask="${function_path}/atlasses/Templates_update/ped_PBEM.nii.gz"
 
-    MNI_brain_emask="${function_path}/atlasses/Templates/ped_BET_mask.nii.gz"
+    MNI_brain_emask="${function_path}/atlasses/Templates_update/ped_BET_mask.nii.gz"
 
-    new_priors="${function_path}/atlasses/Templates/priors/VBG_ped_T_Prior_%d.nii.gz"
+    new_priors="${function_path}/atlasses/Templates_update/priors/VBG_ped_T_Prior_%d.nii.gz"
 
-elif [[ "${P_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 1 ]]; then
+elif [[ "${p_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 1 ]]; then
 
     echo "Working with cooked adult template and priors"
     echo "Working with cooked adult template and priors" >> ${prep_log}
 
-    MNI_T1="${function_path}/atlasses/Templates/VBG_T1_temp.nii.gz"
+    MNI_T1="${function_path}/atlasses/Templates_update/VBG_T1_temp.nii.gz"
 
-    MNI_T1_brain="${function_path}/atlasses/Templates/VBG_T1_temp_brain.nii.gz"
+    MNI_T1_brain="${function_path}/atlasses/Templates_update/VBG_T1_temp_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/VBG_T1_temp_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates_update/VBG_T1_temp_brain_mask.nii.gz"
 
-    MNI_brain_pmask="${function_path}/atlasses/Templates/adult_PBEM.nii.gz"
+    MNI_brain_pmask="${function_path}/atlasses/Templates_update/adult_PBEM.nii.gz"
 
-    MNI_brain_emask="${function_path}/atlasses/Templates/adult_BET_mask.nii.gz"
+    MNI_brain_emask="${function_path}/atlasses/Templates_update/adult_BET_mask.nii.gz"
 
-    new_priors="${function_path}/atlasses/Templates/priors/VBG_adult_T_Prior_%d.nii.gz"
+    new_priors="${function_path}/atlasses/Templates_update/priors/VBG_adult_T_Prior_%d.nii.gz"
 
-elif [[ "${P_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 0 ]]; then
+elif [[ "${p_flag}" -eq 0 ]] && [[ "${t_flag}" -eq 0 ]]; then
 
     echo "Working with default adult template and priors"
     echo "Working with default adult template and priors" >> ${prep_log}
 
-    MNI_T1="${function_path}/atlasses/Templates/HR_T1_MNI.nii.gz"
+    MNI_T1="${function_path}/atlasses/Templates_update/HR_T1_MNI.nii.gz"
 
-    MNI_T1_brain="${function_path}/atlasses/Templates/HR_T1_MNI_brain.nii.gz"
+    MNI_T1_brain="${function_path}/atlasses/Templates_update/HR_T1_MNI_brain.nii.gz"
 
-    MNI_brain_mask="${function_path}/atlasses/Templates/HR_T1_MNI_brain_mask.nii.gz"
+    MNI_brain_mask="${function_path}/atlasses/Templates_update/HR_T1_MNI_brain_mask.nii.gz"
 
-    MNI_brain_pmask="${function_path}/atlasses/Templates/adult_PBEM.nii.gz"
+    MNI_brain_pmask="${function_path}/atlasses/Templates_update/adult_PBEM.nii.gz"
 
-    MNI_brain_emask="${function_path}/atlasses/Templates/adult_BET_mask.nii.gz"
+    MNI_brain_emask="${function_path}/atlasses/Templates_update/adult_BET_mask.nii.gz"
 
-    new_priors="${function_path}/atlasses/Templates/priors/HRT1_Prior_%d.nii.gz"
+    new_priors="${function_path}/atlasses/Templates_update/priors/HRT1_Prior_%d.nii.gz"
 
 fi
 
@@ -771,6 +772,10 @@ Lmask_o=$L_mask
 
 L_mask_reori="${str_pp}_L_mask_reori.nii.gz"
 
+L_mask_reori1="${str_pp}_L_mask_reori1.nii.gz"
+
+Lmask_FS_reori="${str_pp}_Lmask_FS_reori.nii.gz"
+
 L_mask_affMNI1="${str_pp}_L_mask_r_MNI1aff.nii.gz"
 
 L_mask_MNI1c_bin="${str_pp}_L_mask_r_MNI1aff_bin.nii.gz"
@@ -891,9 +896,9 @@ T1_reori_mat="${str_pp}_T1_reori2std_matrix.mat"
 
 T1_reori_mat_inv="${str_pp}_T1_reori2std_matrix_inv.mat"
 
-T1_N4BFC="${str_pp}_T1_bfc.nii.gz"
+# T1_pp1="${str_pp}_T1_bfc.nii.gz"
 
-T1_N4BFC_inMNI1="${str_pp}_T1_dn_bfc_INMNI1.nii.gz"
+T1_pp1="${str_pp}_T1_dn_thr.nii.gz"
 
 T1_brain="${str_pp}_antsBET_BrainExtractionBrain.nii.gz"
 
@@ -931,15 +936,15 @@ T1_brMNI1_str="${str_pp}_T1_brain_inMNI1_"
 
 T1_brain_inMNI1="${str_pp}_T1_brain_inMNI1_Warped.nii.gz"
 
-T1_noise_inMNI1="${str_pp}_T1_noise_inMNI1.nii.gz"
+# T1_noise_inMNI1="${str_pp}_T1_noise_inMNI1.nii.gz"
 
-fT1_noise_inMNI1="${str_pp}_fT1_noise_inMNI1.nii.gz"
+# fT1_noise_inMNI1="${str_pp}_fT1_noise_inMNI1.nii.gz"
 
-T1_noise_H_hemi="${str_pp}_T1_noise_Hhemi_inMNI1.nii.gz"
+# T1_noise_H_hemi="${str_pp}_T1_noise_Hhemi_inMNI1.nii.gz"
 
-stitched_noise_MNI1="${str_pp}_T1_stitched_noise_inMNI1.nii.gz"
+# stitched_noise_MNI1="${str_pp}_T1_stitched_noise_inMNI1.nii.gz"
 
-stitched_noise_nat="${str_pp}_T1_stitched_noise_nat.nii.gz"
+# stitched_noise_nat="${str_pp}_T1_stitched_noise_nat.nii.gz"
 
 T1_brMNI2_str="${str_pp}_T1_brain_inMNI2_"
 
@@ -983,6 +988,8 @@ T1_nat_fout_wskull_2="${str_op}_T1_stdOri_filld_wskull.nii.gz"
 
 T1_4_FS="${str_op}_T1_nat_filled.nii.gz"
 
+T1_4_parc="${str_op}_T1_nat_4parc.mgz"
+
 T1_Brain_4_FS="${str_op}_T1_nat_filled_brain.nii.gz"
 
 T1_BM_4_FS="${str_op}_T1_nat_filled_mask.nii.gz"
@@ -1011,7 +1018,7 @@ T1b_inMNI1_p_norm="${str_pp}_T1brain_inMNI1_punched_norm.nii.gz"
 
 search_wf_mark1=($(find ${preproc} -type f | grep "${brain_mask_inMNI1}"));
 
-srch_preprocp1=($(find ${preproc} -type f | grep "${T1_N4BFC}"));
+srch_preprocp1=($(find ${preproc} -type f | grep "${T1_pp1}"));
 
 srch_antsBET=($(find ${preproc} -type f | grep "${T1_brain_clean}"));
 
@@ -1077,24 +1084,6 @@ function task_exec {
 
 }
 
-# functions for denoising and N4BFC
-
-function KUL_denoise_im {
-
-    task_in="DenoiseImage -d 3 -s 1 -n ${dn_model} -i ${input} -o [${output},${noise}] ${mask} -v 1"
-
-    task_exec
-
-}
-
-function KUL_N4BFC {
-
-    task_in="N4BiasFieldCorrection -d 3 -s 3 -i ${input} -o [${output},${bias}] ${mask} -v 1"
-
-    task_exec
-
-}
-
 # functions for basic antsRegSyN calls
 
 # not using SyNQuick anymore
@@ -1124,9 +1113,9 @@ function KUL_antsRegSyN_Def {
 
 function KUL_antsBETp {
 
-    task_in="fslreorient2std ${Lmask_o} ${L_mask_reori}"
+    # task_in="fslreorient2std ${Lmask_o} ${L_mask_reori}"
 
-    task_exec
+    # task_exec
 
     # BET is done after an initial affine transform to template space
 
@@ -1134,7 +1123,7 @@ function KUL_antsBETp {
     
     task_exec
 
-    task_in="WarpImageMultiTransform 3 ${L_mask_reori} ${L_mask_affMNI1} -R ${MNI_T1} ${output}_aff_2_temp_0GenericAffine.mat \
+    task_in="antsApplyTransforms -d 3 -i ${L_mask_reori} -o ${L_mask_affMNI1} -r ${MNI_T1} -t [${output}_aff_2_temp_0GenericAffine.mat,0] \
     && fslmaths ${L_mask_affMNI1} -mas ${MNI_brain_mask} -bin -save ${L_mask_MNI1c_bin} -binv ${L_mask_MNI1c_binv}"
 
     task_exec
@@ -1162,8 +1151,8 @@ function KUL_antsBETp {
 
         task_exec
 
-        task_in="WarpImageMultiTransform 3 ${output}_brain_c_MNI1aff.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat \
-        && antsApplyTransforms -d 3 -i ${output}_brain_mask_c_hf_MNI1aff.nii.gz -o ${output}_brain_mask_clean_innat_lin.nii.gz -r ${prim_in} -t [${output}_aff_2_temp_0GenericAffine.mat,1] \
+        task_in="antsApplyTransforms -d 3 -i ${output}_brain_c_MNI1aff.nii.gz -o ${T1_brain_clean} -r ${prim_in} -t [${output}_aff_2_temp_0GenericAffine.mat,1] \
+        && antsApplyTransforms -d 3 -i ${output}_brain_mask_c_hf_MNI1aff.nii.gz -o ${output}_brain_mask_clean_innat_lin.nii.gz -r ${prim_in} -t [${output}_aff_2_temp_0GenericAffine.mat,1] -n MultiLabel\
         && fslmaths ${output}_brain_mask_clean_innat_lin.nii.gz -bin ${clean_mask_nat}"
         # && ImageMath 3 ${output}_brain_mask_clean_innat_lin_FH.nii.gz FillHoles ${output}_brain_mask_clean_innat_lin.nii.gz \
         
@@ -1185,7 +1174,7 @@ function KUL_antsBETp {
 
         task_in="fslmaths ${output}_BrainExtractionMask.nii.gz -mul ${MNI_brain_pmask} -save ${output}_brain_mask_c_MNI1aff.nii.gz -restart \
         ${output}_BrainExtractionBrain.nii.gz -mul ${output}_brain_mask_c_MNI1aff.nii.gz ${output}_BrainExtractionBrain_c.nii.gz \
-        && WarpImageMultiTransform 3 ${output}_BrainExtractionBrain_c.nii.gz ${T1_brain_clean} -R ${prim_in} -i ${output}_aff_2_temp_0GenericAffine.mat"
+        && antsApplyTransforms -d 3 -i ${output}_BrainExtractionBrain_c.nii.gz -o ${T1_brain_clean} -r ${prim_in} -t [${output}_aff_2_temp_0GenericAffine.mat,1]"
 
         task_exec
 
@@ -1206,45 +1195,45 @@ function KUL_antsBETp {
 
 # Dealing with the lesion mask part 1
 
-function KUL_Lmask_part1 {
+# function KUL_Lmask_part1 {
 
-    # since we only operate in 1 space (unimodal) this if condition is useless and deprecated
-    # substituting with E_flag coniditional arguments
+#     # since we only operate in 1 space (unimodal) this if condition is useless and deprecated
+#     # substituting with E_flag coniditional arguments
 
-    if [[ "${E_flag}" -eq 0 ]]; then
+#     if [[ "${E_flag}" -eq 0 ]]; then
 
-        # echo " Lesion mask is already in T1 space " >> ${prep_log}
+#         # echo " Lesion mask is already in T1 space " >> ${prep_log}
 
-        echo " Intra-axial lesion running VBG Lmask_pt1 workflow and subsequent steps" >> ${prep_log}
+#         echo " Intra-axial lesion running VBG Lmask_pt1 workflow and subsequent steps" >> ${prep_log}
 
-        # start by smoothing and thring the mask
+#         # start by smoothing and thring the mask
 
-        task_in="fslmaths ${L_mask_reori} -s 2 -thr 0.2 -bin -save ${Lmask_bin} -binv ${Lmask_in_T1_binv}"
+#         task_in="fslmaths ${L_mask_reori} -s 2 -thr 0.2 -bin -save ${Lmask_bin} -binv ${Lmask_in_T1_binv}"
 
-        task_exec
+#         task_exec
 
-        echo " Copying Lmask_bin_s2 file to Lmask_in_T1_bin " >> ${prep_log}
+#         echo " Copying Lmask_bin_s2 file to Lmask_in_T1_bin " >> ${prep_log}
 
-        cp ${Lmask_bin} ${Lmask_in_T1_bin}
+#         cp ${Lmask_bin} ${Lmask_in_T1_bin}
 
-        # subtract lesion from brain mask
+#         # subtract lesion from brain mask
 
-        task_in="fslmaths ${clean_mask_nat} -mas ${Lmask_in_T1_binv} -mas ${clean_mask_nat} ${brain_mask_minL}"
+#         task_in="fslmaths ${clean_mask_nat} -mas ${Lmask_in_T1_binv} -mas ${clean_mask_nat} ${brain_mask_minL}"
 
-        task_exec
+#         task_exec
 
-    else
+#     else
 
-        echo " Extra-axial lesion running simplified VBG Lmask_pt1 workflow, FS and subsequent steps" >> ${prep_log}
+#         echo " Extra-axial lesion running simplified VBG Lmask_pt1 workflow, FS and subsequent steps" >> ${prep_log}
 
-        task_in="fslmaths ${L_mask_reori} -binv ${L_O_binv}"
+#         task_in="fslmaths ${L_mask_reori} -binv ${L_O_binv}"
 
-        task_exec
+#         task_exec
 
     
-    fi
+#     fi
 
-}
+# }
 
 #  determine lesion laterality and proceed accordingly
 #  define all vars for this function
@@ -1263,7 +1252,7 @@ function KUL_Lmask_part2 {
 
     ref="${MNI_T1_brain}"
 
-    task_in="WarpImageMultiTransform 3 ${mask_in} ${mask_out} -R ${ref} ${T1_brMNI2_str}1Warp.nii.gz ${T1_brMNI2_str}0GenericAffine.mat --use-NN"
+    task_in="antsApplyTransforms -d 3 -i ${mask_in} -o ${mask_out} -r ${ref} -t ${T1_brMNI2_str}1Warp.nii.gz -t [${T1_brMNI2_str}0GenericAffine.mat,0] -n MultiLabel"
 
     task_exec
 
@@ -1309,8 +1298,8 @@ function KUL_Lmask_part2 {
     # generate L_hemi+L_mask & H_hemi_minL_mask for unilateral lesions
     # use those to generate stitched image
 
-    task_in="WarpImageMultiTransform 3 ${MNI_l} ${MNI_lw} -R ${T1_brain_inMNI1} -i ${T1_brMNI2_str}0GenericAffine.mat ${T1_brMNI2_str}1InverseWarp.nii.gz && fslmaths \
-    ${MNI_lw} -thr 0.1 -bin -mas ${brain_mask_inMNI1} -save ${MNI_lwr} -binv -mas ${brain_mask_inMNI1} ${MNI_rwr}"
+    task_in="antsApplyTransforms -d 3 -i ${MNI_l} -o ${MNI_lw} -r ${T1_brain_inMNI1} -t [${T1_brMNI2_str}0GenericAffine.mat,1] -t ${T1_brMNI2_str}1InverseWarp.nii.gz -n MultiLabel \
+    && fslmaths ${MNI_lw} -thr 0.1 -bin -mas ${brain_mask_inMNI1} -save ${MNI_lwr} -binv -mas ${brain_mask_inMNI1} ${MNI_rwr}"
 
     task_exec
 
@@ -1469,8 +1458,8 @@ function KUL_Lmask_part2 {
 
         # warp the tissues to T1_brain_inMNI1 (first deformation)
 
-        task_in="WarpImageMultiTransform 3 ${priors_array[$ts]} ${NP_arr_rs[$ts]} -R ${T1_brain_inMNI1} \
-        -i ${T1_brMNI2_str}0GenericAffine.mat ${T1_brMNI2_str}1InverseWarp.nii.gz"
+        task_in="antsApplyTransforms -d 3 -i ${priors_array[$ts]} -o ${NP_arr_rs[$ts]} -r ${T1_brain_inMNI1} \
+        -t [${T1_brMNI2_str}0GenericAffine.mat,1] -t ${T1_brMNI2_str}1InverseWarp.nii.gz"
 
         task_exec
 
@@ -1579,7 +1568,7 @@ function KUL_Lmask_part2 {
 
     fi
 
-    CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.001 -mult -force -quiet)
+    CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.01 -mult -force -quiet)
 
     echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
 
@@ -1604,13 +1593,32 @@ function KUL_Lmask_part2 {
 
         WM_mamean=$(mrcalc ${GM_omean} 1.75 -mult -force -quiet)
 
-        task_in="mrcalc -force -quiet -nthreads ${ncpu} ${MNI2_inT1_ntiss[3]} ${WM_nmean} -div ${WM_mamean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+        echo " Rescaling WM tissue from ${WM_nmean} to ${WM_mamean} " | tee -a ${prep_log}
+
+        task_in="mrcalc -force -quiet -nthreads ${ncpu} ${nMNI2_inT1_ntiss_sc2T1MNI1[3]} ${WM_nmean} -div ${WM_mamean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
 
         task_exec
 
         nMNI2_inT1_ntiss_sc2T1MNI1[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
 
         echo " Normalized WM tissue will be rescaled to a new mean ${WM_mamean}, which is 1.75 x times the GM mean ${GM_omean} " | tee -a ${prep_log}
+
+    else
+
+        # echo " Normalized WM tissue ${WM_nmean} has a lower mean than ${GM_omean} " | tee -a ${prep_log}
+        echo " Forced rescaling of WM intensity " | tee -a ${prep_log}
+
+        WM_mamean=$(mrcalc ${WM_nmean} 1.15 -mult -force -quiet)
+
+        echo " Rescaling WM tissue from a mean of ${WM_nmean} to a new mean of ${WM_mamean} " | tee -a ${prep_log}
+
+        task_in="mrcalc -force -quiet -nthreads ${ncpu} ${nMNI2_inT1_ntiss_sc2T1MNI1[3]} ${WM_nmean} -div ${WM_mamean} -mult ${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+
+        task_exec
+
+        nMNI2_inT1_ntiss_sc2T1MNI1[3]="${str_pp}_nMNI2_inT1_linsc_norm_nWM_cor.nii.gz"
+
+        echo " Normalized WM tissue will be rescaled to a new mean of ${WM_mamean}, which is 1.15 x times the WM old mean of ${WM_nmean} " | tee -a ${prep_log}
 
     fi
 
@@ -1678,15 +1686,15 @@ function KUL_Lmask_part2 {
 
         stitched_T1=${stitched_T1_temp}
 
-        # follow same pipeline for generating a noise map
+        # # follow same pipeline for generating a noise map
 
-        task_in="fslmaths ${T1_noise_inMNI1} -mas ${H_hemi_mask} ${T1_noise_H_hemi}"
+        # task_in="fslmaths ${T1_noise_inMNI1} -mas ${H_hemi_mask} ${T1_noise_H_hemi}"
 
-        task_exec
+        # task_exec
 
-        task_in="fslmaths ${fT1_noise_inMNI1} -mas ${H_hemi_mask_binv} -add ${T1_noise_H_hemi} ${stitched_noise_MNI1}"
+        # task_in="fslmaths ${fT1_noise_inMNI1} -mas ${H_hemi_mask_binv} -add ${T1_noise_H_hemi} ${stitched_noise_MNI1}"
 
-        task_exec
+        # task_exec
 
         # now we generate the initial filled map deriving the graft from the stitched_T1 using template derived tissue
         # this is to avoid midline spill over
@@ -1694,6 +1702,7 @@ function KUL_Lmask_part2 {
         task_in="fslmaths ${stitched_T1} -mul ${Lmask_bin_inMNI2_s3} ${Temp_L_fill_T1}"
 
         task_exec
+
 
         task_in="fslmaths ${T1_brain_inMNI2} -mul ${Lmask_binv_inMNI2_s3} -add ${Temp_L_fill_T1} ${Temp_T1_filled1}"
 
@@ -1707,7 +1716,7 @@ function KUL_Lmask_part2 {
 
     elif [[ ! -z "${bilateral}" ]] || [[ "${t_flag}" -eq 1 ]]; then
 
-        echo " The lesion is bilateral  bil_flag = ${bilateral} and/or template flag is set temp_flag = ${t_flag} -- " >> ${prep_log}
+        echo " The lesion is bilateral  bil_flag = ${bilateral} and/or template flag is set temS_flag = ${t_flag} -- " >> ${prep_log}
 
         # similarly but no hemisphere work and no stitching
         # stitched_T1 and stitched_T1_nat are now fake ones
@@ -1936,50 +1945,50 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         if [[ -z "${srch_preprocp1}" ]]; then
 
-            input="${prim}"
-
-            output1="${str_pp}_T1_reori2std.nii.gz"
-
             # inserted rescaling step 31/12/2020
-            task_in="fslmaths ${input} -thr 0.5 ${str_pp}_T1_thr.nii.gz"
+            task_in="fslmaths ${prim} -thr 0.1 ${str_pp}_T1_thr.nii.gz"
 
             task_exec
 
-            task_in="fslreorient2std ${str_pp}_T1_thr.nii.gz ${output1} && fslreorient2std ${input} >> ${T1_reori_mat}"
+            task_in="recon-all -i ${str_pp}_T1_thr.nii.gz -s ${subj}_temp -sd ${preproc} -openmp ${ncpu} -parallel -autorecon1"
 
             task_exec
 
-            input="${str_pp}_T1_reori2std.nii.gz"
+            # convert to nii from the initial autorecon1 output
+            task_in="mri_convert -rl ${str_pp}_T1_thr.nii.gz ${preproc}/${subj}_temp/mri/orig_nu.mgz ${str_pp}_T1_reori2std.nii.gz \
+            && mri_convert -rl ${str_pp}_T1_thr.nii.gz ${preproc}/${subj}_temp/mri/brainmask.mgz ${str_pp}_brain_mask_init.nii.gz \
+            && fslmaths ${str_pp}_brain_mask_init.nii.gz -bin ${str_pp}_brain_mask_FS.nii.gz"
 
-            unset output2
+            task_exec
+            
+            # && mri_convert -rl ${str_pp}_T1_thr.nii.gz ${Lmask_o} ${Lmask_FS_reori} \
+            # && fslmaths ${Lmask_FS_reori} -bin ${L_mask_reori1}"            
 
-            bias="${str_pp}_T1_bais1.nii.gz"
+            # initial bad BET to assist the affine reg
 
-            output="${T1_N4BFC}"
+            # icent=$(fslstats ${str_pp}_T1_reori2std.nii.gz -C)
 
-            # N4BFC T1s
-            KUL_N4BFC
+            # task_in="bet ${str_pp}_T1_reori2std.nii.gz ${str_pp}_T1_BET1.nii.gz -c ${icent} -f 0.45 -S -B -m -v"
+            
+            # task_exec
 
-            # reorient T1s
+            task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -x ${MNI_brain_mask},${str_pp}_brain_mask_FS.nii.gz \
+            -o ${str_pp}_T1_reori_aff2MNI_ -t a"
+    
+            task_exec
 
-            input="${T1_N4BFC}"
+            task_in="antsApplyTransforms -d 3 -i ${Lmask_o} -o ${L_mask_reori} -r ${MNI_T1_brain} -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,0] -n MultiLabel \
+            && antsApplyTransforms -d 3 -i ${str_pp}_T1_reori2std.nii.gz -o ${str_pp}_T1_reori_aff2MNI.nii.gz -r ${MNI_T1_brain} -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,0]"
 
-            dn_model="Gaussian"
+            task_exec
 
-            output2="${str_pp}_T1_BFC_dn.nii.gz"
+            task_in="DenoiseImage -d 3 -s 1 -n Gaussian -i ${str_pp}_T1_reori_aff2MNI.nii.gz -o [${str_pp}_T1_dn.nii.gz,${str_pp}_T1_noise.nii.gz] -v 1"
 
-            output="${output2}"
-
-            noise="${str_pp}_T1_noise.nii.gz"
-
-            mask=""
-
-            # denoise T1s
-            KUL_denoise_im
+            task_exec
 
             # to avoid failures with BFC due to negative pixel values
 
-            task_in="fslmaths ${output2} -thr 0 ${str_pp}_T1_BFC_dn_thr.nii.gz"
+            task_in="fslmaths ${str_pp}_T1_dn.nii.gz -thr 0.1 ${T1_pp1}"
 
             task_exec
 
@@ -1995,7 +2004,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             echo " running Brain extraction " >> ${prep_log}
 
-            prim_in="${str_pp}_T1_BFC_dn_thr.nii.gz"
+            prim_in="${str_pp}_T1_dn_thr.nii.gz"
 
             output="${hdbet_str}"
 
@@ -2008,7 +2017,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             task_exec
 
-            task_in="fslmaths ${T1_N4BFC} -mul ${BET_mask_binvs2} ${T1_skull}"
+            task_in="fslmaths ${T1_pp1} -mul ${BET_mask_binvs2} ${T1_skull}"
 
             task_exec
 
@@ -2024,6 +2033,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         fi
 
+        # exit 2
 
         # exit if theres a problem with brain extraction
 
@@ -2046,7 +2056,38 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         if [[ -z "${sch_brnmsk_minL}" ]]; then
 
-            KUL_Lmask_part1
+            if [[ "${E_flag}" -eq 0 ]]; then
+
+                # echo " Lesion mask is already in T1 space " >> ${prep_log}
+
+                echo " Intra-axial lesion running VBG Lmask_pt1 workflow and subsequent steps" >> ${prep_log}
+
+                # start by smoothing and thring the mask
+
+                task_in="fslmaths ${L_mask_reori} -s 2 -thr 0.2 -bin -save ${Lmask_bin} -binv ${Lmask_in_T1_binv}"
+
+                task_exec
+
+                echo " Copying Lmask_bin_s2 file to Lmask_in_T1_bin " >> ${prep_log}
+
+                cp ${Lmask_bin} ${Lmask_in_T1_bin}
+
+                # subtract lesion from brain mask
+
+                task_in="fslmaths ${clean_mask_nat} -mas ${Lmask_in_T1_binv} -mas ${clean_mask_nat} ${brain_mask_minL}"
+
+                task_exec
+
+            else
+
+                echo " Extra-axial lesion running simplified VBG Lmask_pt1 workflow, FS and subsequent steps" >> ${prep_log}
+
+                task_in="fslmaths ${L_mask_reori} -binv ${L_O_binv}"
+
+                task_exec
+
+            
+            fi
 
         else
 
@@ -2079,15 +2120,15 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         # Apply warps to brain_mask, noise, L_mask and make BM_minL
 
-        task_in="WarpImageMultiTransform 3 ${clean_mask_nat} ${brain_mask_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
+        task_in="antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${brain_mask_inMNI1} -r ${MNI_T1_brain} -t ${T1_brMNI1_str}1Warp.nii.gz -t [${T1_brMNI1_str}0GenericAffine.mat,0] -n MultiLabel"
 
         task_exec
 
-        task_in="WarpImageMultiTransform 3 ${str_pp}_T1_noise.nii.gz ${T1_noise_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
+        # task_in="WarpImageMultiTransform 3 ${str_pp}_T1_noise.nii.gz ${T1_noise_inMNI1} -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat --use-NN"
 
-        task_exec
+        # task_exec
 
-        task_in="WarpImageMultiTransform 3 ${Lmask_in_T1_bin} ${str_pp}_Lmask_rsMNI1.nii.gz -R ${MNI_T1_brain} ${T1_brMNI1_str}1Warp.nii.gz ${T1_brMNI1_str}0GenericAffine.mat"
+        task_in="antsApplyTransforms -d 3 -i ${Lmask_in_T1_bin} -o ${str_pp}_Lmask_rsMNI1.nii.gz -r ${MNI_T1_brain} -t ${T1_brMNI1_str}1Warp.nii.gz -t [${T1_brMNI1_str}0GenericAffine.mat,0] -n MultiLabel"
 
         task_exec
         
@@ -2403,7 +2444,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz && WarpImageMultiTransform 3 ${stitched_T1_temp} \
         # ${stitched_T1_temp_innat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
 
-        task_in="WarpImageMultiTransform 3 ${stitched_T1_temp} ${stitched_T1_temp_innat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz"
+        task_in="antsApplyTransforms -d 3 -i ${stitched_T1_temp} -o ${stitched_T1_temp_innat} -r ${T1_brain_clean} -t [${T1_bk2nat1_str}0GenericAffine.mat,1] -t ${T1_bk2nat1_str}1InverseWarp.nii.gz"
 
         task_exec
 
@@ -2422,7 +2463,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # Bring the Atropos2_segm_im to native space
         # for diagnostic purposes
 
-        task_in="WarpImageMultiTransform 3 ${atropos2_segm_im_filled} ${atropos2_segm_im_filled_nat} -R ${T1_brain_clean} -i ${T1_bk2nat1_str}0GenericAffine.mat ${T1_bk2nat1_str}1InverseWarp.nii.gz --use-NN"
+        task_in="antsApplyTransforms -d 3 -i ${atropos2_segm_im_filled} -o ${atropos2_segm_im_filled_nat} -r ${T1_brain_clean} -t [${T1_bk2nat1_str}0GenericAffine.mat,1] -t ${T1_bk2nat1_str}1InverseWarp.nii.gz -n MultiLabel"
 
         task_exec
 
@@ -2430,26 +2471,13 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         echo ${tissues[@]} >> ${prep_log}
 
-        # here we make this -> ${str_pp}_synthT1_MNI1.nii.gz using a simple fslmaths step
-
-        # task_in="fslmaths ${T1_sti2fill_brain} -mas ${Lmask_bin_inMNI1_dilx2} ${Lfill_T1_dilx2}"
-
-        # task_exec
-
-        # task_in="fslmaths ${T1_brain_inMNI2} -mas ${Lmask_binv_inMNI1_dilx2} -add ${Lfill_T1_dilx2_im} ${str_pp}_synthT1_MNI1.nii.gz"
-
-        # task_exec
-
-        # task_in="fslmaths ${T1_sti2fill_brain} -bin -mul ${T1_st2f_mean} ${T1b_st2f_mean_im} && ImageMath 3 ${atropos1_brain_norm} \
-        # Normalize ${T1_sti2fill_brain} ${T1b_st2f_mean_im}"
-
         # T1b_inMNI1_p_norm is generated before 
 
         # Match the intensities of the normalized tissue components from each image
 
         image_out="${str_pp}_donor_T1_native.nii.gz"
 
-        task_in="WarpImageMultiTransform 3 ${T1_sti2fill_brain} ${image_out} -R ${T1_brain_clean} -i ${T1_brMNI1_str}0GenericAffine.mat ${T1_brMNI1_str}1InverseWarp.nii.gz"
+        task_in="antsApplyTransforms -d 3 -i ${T1_sti2fill_brain} -o ${image_out} -r ${T1_brain_clean} -t [${T1_brMNI1_str}0GenericAffine.mat,1] -t ${T1_brMNI1_str}1InverseWarp.nii.gz"
 
         task_exec
 
@@ -2468,8 +2496,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # make the final outputs
     
         task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} -add ${T1_fin_Lfill_1} -thr 0 -save ${T1_nat_filled_out_1} -mul ${BET_mask_s2} \
-        -add ${T1_skull} -thr 0 ${T1_nat_fout_wskull_1} && ImageMath 3 ${T1_nat_filled_out_2} HistogramMatch ${T1_nat_filled_out_1} ${str_pp}_T1_thr.nii.gz \
-        && ImageMath 3 ${T1_nat_fout_wskull_2} HistogramMatch ${T1_nat_fout_wskull_1} ${str_pp}_T1_thr.nii.gz \
+        -add ${T1_skull} -thr 0 ${T1_nat_fout_wskull_1} && ImageMath 3 ${T1_nat_filled_out_2} HistogramMatch ${T1_nat_filled_out_1} ${T1_pp1} \
+        && ImageMath 3 ${T1_nat_fout_wskull_2} HistogramMatch ${T1_nat_fout_wskull_1} ${T1_pp1} \
         && fslmaths ${T1_nat_fout_wskull_2} -mul ${clean_mask_nat} ${T1_nat_filled_out_2}"
 
         task_exec
@@ -2479,14 +2507,22 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         task_exec
         
-        task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
-        && flirt -in ${Lmask_binv_s3_nobrain} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        && sleep 5 && flirt -in ${T1_fin_Lfill_2} -out ${T1_fin_Lfill_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        && fslmaths ${str_pp}_T1_thr.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
-        ${T1_Brain_4_FS}"
+        task_in="antsApplyTransforms -d 3 -i ${Lmask_binv_s3_nobrain} -o ${Lmask_binv_s3_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
+        && antsApplyTransforms -d 3 -i ${T1_fin_Lfill_2} -o ${T1_fin_Lfill_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
+        && antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${T1_BM_4_FS} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] -n MultiLabel \
+        && fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
+        ${T1_Brain_4_FS} && mri_convert -i ${T1_4_FS} -o ${T1_4_parc} --conform"
 
         task_exec
+        
+        # task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
+        # && flirt -in ${Lmask_binv_s3_nobrain} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+        # && sleep 5 && flirt -in ${T1_fin_Lfill_2} -out ${T1_fin_Lfill_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+        # && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
+        # && fslmaths ${str_pp}_T1_thr.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
+        # ${T1_Brain_4_FS}"
+
+        # task_exec
 
     else
 
@@ -2569,11 +2605,11 @@ else
 
     task_exec
 
-    task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
-    && flirt -in ${L_O_binv} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-    && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-    && fslmaths ${T1_orig} -mul ${Lmask_binv_s3_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
-    ${T1_Brain_4_FS}"
+    task_in="antsApplyTransforms -d 3 -i ${Lmask_binv_s3_nobrain} -o ${Lmask_binv_s3_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
+    && antsApplyTransforms -d 3 -i ${T1_fin_Lfill_2} -o ${T1_fin_Lfill_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
+    && antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${T1_BM_4_FS} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] -n MultiLabel \
+    && fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
+    ${T1_Brain_4_FS} && mri_convert -i ${T1_4_FS} -o ${T1_4_parc} --conform"
 
     task_exec
 
@@ -2589,61 +2625,219 @@ fi
 
 # for recon-all
 
-if [[ "${F_flag}" -eq 1 ]] ; then
+if [[ "${P_flag}" -eq 1 ]] ; then
 
-    echo
-    echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >&2
-    echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >> ${prep_log}
-    echo
+    if [[ "${parc_F}" -eq 1 ]] ; then
 
-    if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
+        echo
+        echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >&2
+        echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >> ${prep_log}
+        echo
 
-        fs_output="${cwd}/BIDS/derivatives/freesurfer/sub-${subj}"
+        if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
 
-    else
+            fs_output="${cwd}/BIDS/derivatives/freesurfer/sub-${subj}"
 
-        fs_output="${str_op}_FS_output/sub-${subj}"
+        else
 
-    fi
+            fs_output="${str_op}_FS_output/sub-${subj}"
 
-    recall_scripts="${fs_output}/${subj}/scripts"
+        fi
 
-    search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
+        recall_scripts="${fs_output}/${subj}/scripts"
 
-    FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
+        search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
 
-    new_brain="${str_pp}_T1_Brain_4FS.mgz"
+        FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
 
-    if [[ -z "${search_wf_mark4}" ]]; then
+        new_brain="${str_pp}_T1_Brain_4FS.mgz"
 
-        task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
+        if [[ -z "${search_wf_mark4}" ]]; then
 
-        task_exec
+            task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
 
-        # Run recon-all and convert the real T1 to .mgz for display
-        # running with -noskulltrip and using brain only inputs
-        # for recon-all
-        # if we can run up to skull strip, break, fix with hd-bet result then continue it would be much better
-        # if we can switch to fast-surf, would be great also
-        # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
+            task_exec
 
-        task_in="recon-all -i ${T1_4_FS} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all"
+            # Run recon-all and convert the real T1 to .mgz for display
+            # running with -noskulltrip and using brain only inputs
+            # for recon-all
+            # if we can run up to skull strip, break, fix with hd-bet result then continue it would be much better
+            # if we can switch to fast-surf, would be great also
+            # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
 
-        task_exec
+            task_in="recon-all -i ${T1_4_parc} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1"
 
-        task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
+            task_exec
 
-        task_exec
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
 
-        task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
+            task_exec
 
-        task_exec
+            task_in="mri_mask ${FS_brain} ${T1_BM_4_FS} ${new_brain} && mv ${new_brain} ${fs_output}/${subj}/mri/brainmask.mgz && cp \
+            ${fs_output}/${subj}/mri/brainmask.mgz ${fs_output}/${subj}/mri/brainmask.auto.mgz"
 
-    else
+            task_exec
 
-        echo " recon-all already done, skipping. "
-        echo " recon-all already done, skipping. "  >> ${prep_log}
+            task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
+
+            task_exec
+
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
+
+            task_exec
+
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
+
+            task_exec
+
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
+
+        else
+
+            echo " recon-all already done, skipping. "
+            echo " recon-all already done, skipping. "  >> ${prep_log}
+            
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
+            
+        fi
+
+    elif [[ "${parc_F}" -eq 2 ]] ; then
+
+        echo
+        echo "FastSurfer flag is set, now starting FaSu recon-all based part of VBG" >&2
+        echo "FastSurfer flag is set, now starting FaSu recon-all based part of VBG" >> ${prep_log}
+        echo
+
+        if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
+
+            fs_output="${cwd}/BIDS/derivatives/fastsurfer/sub-${subj}"
+
+        else
+
+            fs_output="${str_op}_FaSu_output/sub-${subj}"
+
+        fi
+
+        recall_scripts="${fs_output}/${subj}/scripts"
+
+        search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
+
+        FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
+
+        new_brain="${str_pp}_T1_Brain_4FS.mgz"
+
+        if [[ ! -f "${fs_output}/${subj}/label/rh.aparc.annot" ]]; then
         
+            if [[ -z "${search_wf_mark4}" ]]; then
+
+                task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
+
+                task_exec
+
+                # Now we need to figure out how to run FaSu
+                # this is really a beta option
+                # so set it according to your arch ?
+                # a general solution is the fastsurfer cpu docker file
+
+                # search for FaSu native install first
+                FaSu_loc=$(which run_fastsurfer.sh)
+                nvd_cu=$(nvidia-smi)
+                user_id_str=$(id -u $(whoami))
+
+                if [[ ! -z ${FaSu_loc} ]]; then
+
+                    if [[ -z ${nvd_cu} ]]; then
+
+                        FaSu_cpu=" --no_cuda "
+
+                    else
+
+                        FaSu_cpu=""
+
+                    fi
+
+                    # it's a good idea to run autorecon1 first anyway
+                    # then use the orig from that to feed to FaSu
+
+                    task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
+                    --sid ${subj} --sd ${fs_output} --parallel --threads ${ncpu} \
+                    --fs_license $FREESURFER_HOME/license.txt --py python ${FaSu_cpu}"
+
+                    task_exec
+
+                    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
+
+                    task_exec
+
+                    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
+
+                    task_exec
+
+                else
+
+                    # it's a good idea to run autorecon1 first anyway
+                    # then use the orig from that to feed to FaSu
+
+                    echo "Local FastSurfer not found, switching to Docker version" >> ${prep_log}
+                    T1_4_FaSu=$(basename ${T1_4_parc})
+
+                    if [[ ! -z ${nvd_cu} ]]; then
+
+                        FaSu_v="gpu"
+
+                    else
+
+                        FaSu_v="cpu"
+
+                    fi
+
+                    task_in="docker run -v ${preproc}:/data -v ${fs_output}:/output \
+                    -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
+                    --fs_license /fs60/license.txt --t1 /data/${T1_4_FaSu}"
+
+                    task_exec
+
+                    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
+
+                    task_exec
+
+                    task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
+
+                    task_exec
+
+
+                fi
+                # check if cuda is available
+                # if so do FaSu natively with CUDA
+                # if not found then search for docker
+                # check if cuda is available
+                # if both found then use 
+                # docker with cuda
+                # if cuda not found then docker cpu
+
+            fi
+
+            # need to find fs wd and go to the level of license
+
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc.mapped+aseg.mgz"
+
+            cp ${fs_output}/${subj}/label/lh.aparc.mapped.annot ${fs_output}/${subj}/label/lh.aparc.annot
+
+            cp ${fs_output}/${subj}/label/rh.aparc.mapped.annot ${fs_output}/${subj}/label/rh.aparc.annot
+        
+        else
+
+            echo " recon-all already done, skipping. "
+            echo " recon-all already done, skipping. "  >> ${prep_log}
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc.mapped+aseg.mgz"
+
+            #cp ${fs_output}/${subj}/label/lh.aparc.mapped.annot ${fs_output}/${subj}/label/lh.aparc.annot
+
+            #cp ${fs_output}/${subj}/label/rh.aparc.mapped.annot ${fs_output}/${subj}/label/rh.aparc.annot
+            
+        fi
+
+
     fi
 
     # ## After recon-all is finished we need to calculate percent lesion/lobe overlap
@@ -2681,8 +2875,6 @@ if [[ "${F_flag}" -eq 1 ]] ; then
     "53"  "17"  "0"  "0");
 
     fs_lobes_mgz="${fs_output}/${subj}/mri/lobes_ctx_wm_fs.mgz"
-
-    fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
 
     fs_parc_nii="${str_op}_aparc+aseg.nii.gz"
 
@@ -2781,7 +2973,7 @@ if [[ "${F_flag}" -eq 1 ]] ; then
         ${function_path}/share/labelconvert/fs_default+lesion.txt ${fs_parc_plusL_nii_LC} && labelconvert -force -nthreads ${ncpu} \
         ${fs_parc_nii} ${FS_path1}/FreeSurferColorLUT.txt ${mrtrix_path}/share/mrtrix3/labelconvert/fs_default.txt ${fs_parc_nii_LC} \
         && labelconvert -force -nthreads ${ncpu} ${fs_parc_minL_nii} ${FS_path1}/FreeSurferColorLUT.txt \
-        ${mrtrix_path}/share/mrtrix3/labelconvert/fs_default.txt ${fs_parc_nii_minL_LC}"
+        ${mrtrix_path}/share/mrtrix3/labelconvert/fs_default.txt ${fs_parc_minL_nii_LC}"
 
         task_exec
     
@@ -2888,7 +3080,7 @@ if [[ "${F_flag}" -eq 1 ]] ; then
 
     done
 
-elif [[ "${F_flag}" -eq 0 ]] ; then
+elif [[ "${P_flag}" -eq 0 ]] ; then
 
     echo
     echo "Fresurfer flag not set, finished, exiting" >&2

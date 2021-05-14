@@ -655,9 +655,9 @@ MNI2_in_T1="${str_pp}_T1_brain_inMNI2_InverseWarped.nii.gz"
 
 MNI2_in_T1_hm="${str_pp}_T1_brain_inMNI2_InverseWarped_HistMatch.nii.gz"
 
-MNI_r="${function_path}/atlasses/Templates/Rt_hemi_mask.nii.gz"
+MNI_r="${function_path}/atlasses/Templates_update/Rt_hemi_mask.nii.gz"
 
-MNI_l="${function_path}/atlasses/Templates/Lt_hemi_mask.nii.gz"
+MNI_l="${function_path}/atlasses/Templates_update/Lt_hemi_mask.nii.gz"
 
 MNI_lw="${str_pp}_MNI_L_insubjT1_inMNI1.nii.gz"
 

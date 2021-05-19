@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.51_13052021_beta"
+v="0.52_19052021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -128,7 +128,7 @@ else
         case $OPT in
         S) #subject
             S_flag=1
-            subj=$OPTARG
+            subj="sub-${OPTARG}"
         ;;
         b) #BIDS or not ?
             bids_flag=1
@@ -211,11 +211,11 @@ if [[ "$o_flag" -eq 1 ]]; then
 	
     output_m="${out_dir}"
 
-    output_d="${output_m}/output_VBG/sub-${subj}${ses_long}"
+    output_d="${output_m}/output_VBG/${subj}${ses_long}"
 
 else
 
-	output_d="${lesion_wf}/output_VBG/sub-${subj}${ses_long}"
+	output_d="${lesion_wf}/output_VBG/${subj}${ses_long}"
 
 fi
 
@@ -225,11 +225,11 @@ if [[ "$m_flag" -eq 1 ]]; then
 
 	preproc_m="${wf_dir}"
 
-    preproc="${preproc_m}/proc_VBG/sub-${subj}${ses_long}"
+    preproc="${preproc_m}/proc_VBG/${subj}${ses_long}"
 
 else
 
-	preproc="${lesion_wf}/proc_VBG/sub-${subj}${ses_long}"
+	preproc="${lesion_wf}/proc_VBG/${subj}${ses_long}"
 
 fi
 
@@ -291,7 +291,7 @@ fi
 if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 		
 	# bids flag defined but not session flag
-    search_sessions=($(find ${cwd}/BIDS/sub-${subj} -type d | grep anat));
+    search_sessions=($(find ${cwd}/BIDS/${subj} -type d | grep anat));
 	num_sessions=${#search_sessions[@]};
 	ses_long="";
 	
@@ -328,20 +328,20 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 
     if [[ "$o_flag" -eq 0 ]]; then
 
-        output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+        output_d="${cwd}/BIDS/derivatives/output_VBG/${subj}${ses_long}"
 
     fi
 
     if [[ "$m_flag" -eq 0 ]]; then
 
-        preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
+        preproc="${cwd}/BIDS/derivatives/proc_VBG/${subj}${ses_long}"
 
     fi
 
 elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 		
 	# this is fine
-    ses_string="${cwd}/BIDS/sub-${subj}_ses-${ses}"
+    ses_string="${cwd}/BIDS/${subj}_ses-${ses}"
 	search_sessions=($(find ${ses_string} -type d | grep anat));
 	num_sessions=1;
 	ses_long=_ses-0${num_sessions};
@@ -372,13 +372,13 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 
     if [[ "$o_flag" -eq 0 ]]; then
 
-        output_d="${cwd}/BIDS/derivatives/output_VBG/sub-${subj}${ses_long}"
+        output_d="${cwd}/BIDS/derivatives/output_VBG/${subj}${ses_long}"
 
     fi
 
     if [[ "$m_flag" -eq 0 ]]; then
 
-        preproc="${cwd}/BIDS/derivatives/proc_VBG/sub-${subj}${ses_long}"
+        preproc="${cwd}/BIDS/derivatives/proc_VBG/${subj}${ses_long}"
 
     fi
 
@@ -415,9 +415,9 @@ fi
 
 ######
 
-ROIs="${output_d}/sub-${subj}${ses_long}/ROIs"
+ROIs="${output_d}/ROIs"
 	
-overlap="${output_d}/sub-${subj}${ses_long}/overlap"
+overlap="${output_d}/overlap"
 
 #####
 
@@ -566,11 +566,11 @@ echo "KUL_VBG @ ${d} with parent pid $$ " | tee -a ${prep_log}
 
 # naming strings
 
-    str_pp="${preproc}/sub-${subj}${ses_long}"
+    str_pp="${preproc}/${subj}${ses_long}"
 
-    str_op="${output_d}/sub-${subj}${ses_long}"
+    str_op="${output_d}/${subj}${ses_long}"
 
-    str_overlap="${overlap}/sub-${subj}${ses_long}"
+    str_overlap="${overlap}/${subj}${ses_long}"
 
 # Template stuff
 
@@ -2628,11 +2628,13 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
 
-            fs_output="${cwd}/BIDS/derivatives/freesurfer/sub-${subj}"
+            fs_output="${cwd}/BIDS/derivatives/freesurfer/${subj}"
+            fasu_output="${cwd}/BIDS/derivatives/fastsurfer/${subj}"
 
         else
 
-            fs_output="${str_op}_FS_output/sub-${subj}"
+            fs_output="${str_op}_FS_output/${subj}"
+            fasu_output="${str_op}fastsurfer/${subj}"
 
         fi
 
@@ -2657,7 +2659,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             # if we can switch to fast-surf, would be great also
             # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
 
-            task_in="recon-all -i ${T1_4_parc} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1"
+            task_in="recon-all -i ${T1_4_parc} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
 
             task_exec
 
@@ -2670,7 +2672,71 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
             task_exec
 
-            task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
+            FaSu_loc=$(which run_fastsurfer.sh)
+            nvd_cu=$(nvcc --version)
+            user_id_str=$(id -u $(whoami))
+            T1_4_FaSu=$(basename ${T1_4_parc})
+
+            if [[ ! -z ${FaSu_loc} ]]; then
+
+                if [[ -z ${nvd_cu} ]]; then
+
+                    FaSu_cpu=" --no_cuda "
+
+                else
+
+                    FaSu_cpu=""
+
+                fi
+
+                # it's a good idea to run autorecon1 first anyway
+                # then use the orig from that to feed to FaSu
+
+                task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
+                --sid ${subj} --sd ${fasu_output} --parallel --threads ${ncpu} \
+                --fs_license $FREESURFER_HOME/license.txt --py python ${FaSu_cpu}"
+
+                task_exec
+
+            else
+
+                # it's a good idea to run autorecon1 first anyway
+                # then use the orig from that to feed to FaSu
+
+                echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
+                T1_4_FaSu=$(basename ${T1_4_parc})
+
+                if [[ ! -z ${nvd_cu} ]]; then
+
+                    FaSu_v="gpu"
+
+                else
+
+                    FaSu_v="cpu"
+
+                fi
+
+                task_in="docker run -v ${output_d}:/data -v ${fs_output}:/output \
+                -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
+                --fs_license /fs60/license.txt --sid ${subj} \
+                --sd /data/${subj}${ses_long}fastsurfer/${subj} --t1 /data/${T1_4_FaSu} \
+                --parallel --threads ${ncpu}"
+
+                task_exec
+
+            fi
+
+            # time to copy the surfaces and labels from FaSu to FS dir
+            # here we run FastSurfer first and 
+
+            cp -rf ${output_d}/${subj}${ses_long}fastsurfer/${subj}/surf ${output_d}/${subj}${ses_long}_FS_output/${subj}/
+            cp -rf ${output_d}/${subj}${ses_long}fastsurfer/${subj}/label ${output_d}/${subj}${ses_long}_FS_output/${subj}/
+
+            # task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
+
+            # task_exec
+
+            task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -noskullstrip -no-isrunning -make all"
 
             task_exec
 
@@ -2702,11 +2768,11 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
 
-            fs_output="${cwd}/BIDS/derivatives/fastsurfer/sub-${subj}"
+            fs_output="${cwd}/BIDS/derivatives/fastsurfer"
 
         else
 
-            fs_output="${str_op}_FaSu_output/sub-${subj}"
+            fs_output="${str_op}fastsurfer"
 
         fi
 
@@ -2786,7 +2852,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                     task_in="docker run -v ${output_d}:/data -v ${fs_output}:/output \
                     -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
                     --fs_license /fs60/license.txt --sid ${subj} \
-                    --sd /data/sub-${subj}${ses_long}_FS_output/sub-${subj} --t1 /data/${T1_4_FaSu} \
+                    --sd /data/${subj}${ses_long}fastsurfer/${subj} --t1 /data/${T1_4_FaSu} \
                     --parallel --fsaparc --threads ${ncpu}"
 
                     task_exec

@@ -2879,17 +2879,13 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
             # need to find fs wd and go to the level of license
 
-            fs_parc_mgz="${fs_output}/${subj}/mri/aparc.mapped+aseg.mgz"
-
-            cp ${fs_output}/${subj}/label/lh.aparc.mapped.annot ${fs_output}/${subj}/label/lh.aparc.annot
-
-            cp ${fs_output}/${subj}/label/rh.aparc.mapped.annot ${fs_output}/${subj}/label/rh.aparc.annot
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
         
         else
 
             echo " recon-all already done, skipping. "
             echo " recon-all already done, skipping. "  | tee -a ${prep_log}
-            fs_parc_mgz="${fs_output}/${subj}/mri/aparc.mapped+aseg.mgz"
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
 
             #cp ${fs_output}/${subj}/label/lh.aparc.mapped.annot ${fs_output}/${subj}/label/lh.aparc.annot
 

@@ -2629,14 +2629,15 @@ if [[ "${P_flag}" -eq 1 ]] ; then
         if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
 
             fs_output="${cwd}/BIDS/derivatives/freesurfer/${subj}"
-            fasu_output="${cwd}/BIDS/derivatives/fastsurfer/${subj}"
+            # fasu_output="${cwd}/BIDS/derivatives/fastsurfer/${subj}"
 
         else
 
             fs_output="${str_op}_FS_output/${subj}"
-            fasu_output="${str_op}fastsurfer/${subj}"
 
         fi
+
+        fasu_output="${str_op}fastsurfer"
 
         recall_scripts="${fs_output}/${subj}/scripts"
 
@@ -2677,6 +2678,23 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
 
+            FS_lic="$FREESURFER_HOME/license.txt"
+            
+            # this can be helpful for HPC users for now
+            # Should be changed to an optional input
+            if [[ ! -f ${FS_lic} ]]; then
+
+                FS_lic="$FREESURFER_HOME/.license"
+
+                if [[ ! -f ${FS_lic} ]]; then
+
+                    echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
+                    exit 2
+
+                fi
+
+            fi
+
             if [[ ! -z ${FaSu_loc} ]]; then
 
                 if [[ -z ${nvd_cu} ]]; then
@@ -2693,7 +2711,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 # then use the orig from that to feed to FaSu
 
                 task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
-                --sid ${subj} --sd ${fasu_output} --parallel --threads ${ncpu} \
+                --sid ${subj} --sd ${fasu_output}/${subj} --parallel --threads ${ncpu} \
                 --fs_license $FREESURFER_HOME/license.txt --py python ${FaSu_cpu}"
 
                 task_exec
@@ -2719,7 +2737,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 task_in="docker run -v ${output_d}:/data -v ${fs_output}:/output \
                 -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
                 --fs_license /fs60/license.txt --sid ${subj} \
-                --sd /data/${subj}${ses_long}fastsurfer/${subj} --t1 /data/${T1_4_FaSu} \
+                --sd /output/ --t1 /data/${T1_4_FaSu} \
                 --parallel --threads ${ncpu}"
 
                 task_exec
@@ -2766,7 +2784,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
         echo "FastSurfer flag is set, now starting FaSu recon-all based part of VBG" | tee -a ${prep_log}
         echo
 
-        if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
+        if [[ "${bids_flag}" -eq 1 ]] && [[ "${o_flag}" -eq 0 ]]; then
 
             fs_output="${cwd}/BIDS/derivatives/fastsurfer"
 
@@ -2778,15 +2796,21 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         recall_scripts="${fs_output}/${subj}/scripts"
 
-        search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
+        # search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
 
         FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
 
         new_brain="${str_pp}_T1_Brain_4FS.mgz"
 
-        if [[ ! -f "${fs_output}/${subj}/label/rh.aparc.annot" ]]; then
+        # ${fs_output}/${subj}/label/rh.aparc.annot
         
-            if [[ -z "${search_wf_mark4}" ]]; then
+        echo "${fs_output}/${subj}/label/rh.aparc.annot"
+
+        echo "${recall_scripts}/recon-all.done"
+
+        if [[ ! -f ${fs_output}/${subj}/label/rh.aparc.annot ]]; then
+        
+            if [[ ! -f ${recall_scripts}/recon-all.done ]]; then
 
                 task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
 
@@ -2852,7 +2876,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                     task_in="docker run -v ${output_d}:/data -v ${fs_output}:/output \
                     -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
                     --fs_license /fs60/license.txt --sid ${subj} \
-                    --sd /data/${subj}${ses_long}fastsurfer/${subj} --t1 /data/${T1_4_FaSu} \
+                    --sd /output/ --t1 /data/${T1_4_FaSu} \
                     --parallel --fsaparc --threads ${ncpu}"
 
                     task_exec

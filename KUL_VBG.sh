@@ -2734,7 +2734,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 fi
 
-                task_in="docker run -v ${output_d}:/data -v ${fs_output}:/output \
+                task_in="docker run -v ${output_d}:/data -v ${fasu_output}:/output \
                 -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
                 --fs_license /fs60/license.txt --sid ${subj} \
                 --sd /output/ --t1 /data/${T1_4_FaSu} \

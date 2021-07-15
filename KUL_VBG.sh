@@ -2712,7 +2712,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
                 --sid ${subj} --sd ${fasu_output}/${subj} --parallel --threads ${ncpu} \
-                --fs_license $FREESURFER_HOME/license.txt --py python ${FaSu_cpu}"
+                --fs_license ${FS_lic} --py python ${FaSu_cpu}"
 
                 task_exec
 
@@ -2736,7 +2736,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 task_in="docker run -v ${output_d}:/data -v ${fasu_output}:/output \
                 -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
-                --fs_license /fs60/license.txt --sid ${subj} \
+                --fs_license /fs60/$(basename ${FS_lic}) --sid ${subj} \
                 --sd /output/ --t1 /data/${T1_4_FaSu} \
                 --parallel --threads ${ncpu}"
 
@@ -2860,7 +2860,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                     task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
                     --sid ${subj} --sd ${fs_output} --parallel --fsaparc --threads ${ncpu} \
-                    --fs_license $FREESURFER_HOME/license.txt --py python ${FaSu_cpu}"
+                    --fs_license ${FS_lic} --py python ${FaSu_cpu}"
 
                     task_exec
 
@@ -2892,7 +2892,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                     task_in="docker run -v ${output_d}:/data -v ${fs_output}:/output \
                     -v $FREESURFER_HOME:/fs60 --rm --user ${user_id_str} fastsurfer:${FaSu_v} \
-                    --fs_license /fs60/license.txt --sid ${subj} \
+                    --fs_license /fs60/$(basename ${FS_lic}) --sid ${subj} \
                     --sd /output/ --t1 /data/${T1_4_FaSu} \
                     --parallel --fsaparc --threads ${ncpu}"
 

@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.52_19052021_beta"
+v="0.53_15072021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -341,7 +341,7 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 		
 	# this is fine
-    ses_string="${cwd}/BIDS/${subj}_ses-${ses}"
+    ses_string="${cwd}/BIDS/${subj}/ses-${ses}"
 	search_sessions=($(find ${ses_string} -type d | grep anat));
 	num_sessions=1;
 	ses_long=_ses-0${num_sessions};
@@ -2807,6 +2807,23 @@ if [[ "${P_flag}" -eq 1 ]] ; then
         echo "${fs_output}/${subj}/label/rh.aparc.annot"
 
         echo "${recall_scripts}/recon-all.done"
+
+        FS_lic="$FREESURFER_HOME/license.txt"
+            
+        # this can be helpful for HPC users for now
+        # Should be changed to an optional input
+        if [[ ! -f ${FS_lic} ]]; then
+
+            FS_lic="$FREESURFER_HOME/.license"
+
+            if [[ ! -f ${FS_lic} ]]; then
+
+                echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
+                exit 2
+
+            fi
+
+        fi
 
         if [[ ! -f ${fs_output}/${subj}/label/rh.aparc.annot ]]; then
         

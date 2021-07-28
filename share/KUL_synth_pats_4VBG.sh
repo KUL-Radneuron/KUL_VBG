@@ -464,15 +464,31 @@ for i in ${!HVs[@]}; do
 
         echo "Now working on HVs BETs" | tee -a ${prep_log}
 
+        # look for CUDA installation
+        # if not found use hd-bet in CPU mode
+        # if found use hd-bet with cuda
+        
+        nvd_cu=$(nvcc --version)
+
         if [[ ! -f "${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz" ]]; then
 
             task_in="fslreorient2std ${cons_d}/sub-${HVs[$i]}/sub-${HVs[$i]}_T1w.nii.gz ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz"
 
             task_exec
 
-            task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain"
+            if [[ -z ${nvd_cu} ]]; then
 
-            task_exec
+                task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain -tta 0 -mode fast -s 1 -device cpu"
+
+                task_exec
+            else
+
+                task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain"
+
+                task_exec
+
+            fi
+
 
         else
 

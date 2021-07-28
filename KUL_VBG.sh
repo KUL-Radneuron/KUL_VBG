@@ -1133,7 +1133,7 @@ function KUL_antsBETp {
 
         echo "HD-BET is selected, will use this for brain extraction" | tee -a ${prep_log}
 
-        echo "sourcing ptc conda virtual env, if yours is named differently please edit lines 822 823 " | tee -a ${prep_log}
+        echo "Assuming a local installation of hd-bet, if yours is installed different changed line 1144" | tee -a ${prep_log}
 
         # task_in="source /anaconda3/bin/activate ptc && hd-bet -i ${prim_in} -o ${output} -tta 0 -mode fast -s 1 -device cpu"
 
@@ -1161,9 +1161,6 @@ function KUL_antsBETp {
 
         echo "ANTsBET is selected, will use this for brain extraction" | tee -a ${prep_log}
 
-        # if you want to use the modified ANTs based BET approach and not HD-BET
-        # just comment out the if loop and hd-bet condition (be sure to get the if, else and fi lines)
-        
         task_in="antsBrainExtraction.sh -d 3 -a ${output}_aff_2_temp_Warped.nii.gz -e ${MNI_T1} -m ${MNI_brain_pmask} -f ${MNI_brain_emask} -u 1 -k 1 -q 1 -o ${output}_"
 
         task_exec
@@ -1946,7 +1943,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         if [[ -z "${srch_preprocp1}" ]]; then
 
             # inserted rescaling step 31/12/2020
-            task_in="fslmaths ${prim} -thr 0.1 ${str_pp}_T1_thr.nii.gz"
+            task_in="fslmaths ${prim} -nan -thr 0.1 ${str_pp}_T1_thr.nii.gz"
 
             task_exec
 
@@ -2628,12 +2625,12 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
 
-            fs_output="${cwd}/BIDS/derivatives/freesurfer/${subj}"
+            fs_output="${cwd}/BIDS/derivatives/freesurfer"
             # fasu_output="${cwd}/BIDS/derivatives/fastsurfer/${subj}"
 
         else
 
-            fs_output="${str_op}_FS_output/${subj}"
+            fs_output="${str_op}_FS_output"
 
         fi
 

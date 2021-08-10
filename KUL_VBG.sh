@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.53_15072021_beta"
+v="0.55_10082021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -72,7 +72,7 @@ Optional arguments:
     -t:  Use the VBG template to derive the fill patch (if used, template tissue is used alongside native tissue to create the donor brain)
     -E:  Treat as an extra-axial lesion (skip VBG bulk, fill lesion patch with 0s, run FS and subsequent steps)
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
-    -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer)
+    -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer, 3 = FastSurfer and FreeSurfer hybrid)
     -p:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./VBG_output)
@@ -1129,6 +1129,8 @@ function KUL_antsBETp {
     # this approach ensures minimal failures in either case
     # if HD-BET excludes too much of a brain or if ANTs includes too much
 
+    nvd_cu=$(nvcc --version)
+
     if [[ ${BET_m} -eq 1 ]]; then
 
         echo "HD-BET is selected, will use this for brain extraction" | tee -a ${prep_log}
@@ -1139,7 +1141,17 @@ function KUL_antsBETp {
 
         # task_exec
 
-        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i -tta 0 -mode fast -s 1 -device cpu"
+        if [[ -z ${nvd_cu} ]]; then
+
+            HDB_type=" -tta 0 -mode accurate -s 1 -device cpu "
+
+        else
+
+            HDB_type=" -tta 0 -mode accurate -s 1 "
+
+        fi
+
+        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i ${HDB_type}"
 
         task_exec
 
@@ -1494,7 +1506,7 @@ function KUL_Lmask_part2 {
     ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p.nii.gz addtozero ${str_pp}_atropos_priors_GMC+BG+CSF_prepped.nii.gz ${NP_arr_rs_bin[3]} \
     ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p.nii.gz && ImageMath 3 ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p2.nii.gz \
     ReplaceVoxelValue ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p.nii.gz 5 10 4 && ImageMath 3 ${str_pp}_atropos_priors_GMC+BG+CSF+WM_ready.nii.gz \
-    FillHoles ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p2.nii.gz"
+    InPaint ${str_pp}_atropos_priors_GMC+BG+CSF+WM_p2.nii.gz 50"
 
     task_exec
 
@@ -2616,11 +2628,85 @@ fi
 
 if [[ "${P_flag}" -eq 1 ]] ; then
 
-    if [[ "${parc_F}" -eq 1 ]] ; then
+        if [[ "${parc_F}" -eq 1 ]] ; then
 
         echo
-        echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" >&2
-        echo "Fresurfer flag is set, now starting FS recon-all based part of VBG" | tee -a ${prep_log}
+        echo "Freesurfer flag is set, now starting FS recon-all based part of VBG" >&2
+        echo "Freesurfer flag is set, now starting FS recon-all based part of VBG" | tee -a ${prep_log}
+        echo
+
+        if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
+
+            fs_output="${cwd}/BIDS/derivatives/freesurfer"
+
+        else
+
+            fs_output="${str_op}_FS_output"
+
+        fi
+
+        recall_scripts="${fs_output}/${subj}/scripts"
+
+        search_wf_mark4=($(find ${recall_scripts} -type f 2> /dev/null | grep recon-all.done));
+
+        FS_brain="${fs_output}/${subj}/mri/brainmask.mgz"
+
+        new_brain="${str_pp}_T1_Brain_4FS.mgz"
+
+        if [[ -z "${search_wf_mark4}" ]]; then
+
+            task_in="mkdir -p ${fs_output} >/dev/null 2>&1"
+
+            task_exec
+
+            # Run recon-all and convert the real T1 to .mgz for display
+            # running with -noskulltrip and using brain only inputs
+            # for recon-all
+            # if we can run up to skull strip, break, fix with hd-bet result then continue it would be much better
+            # if we can switch to fast-surf, would be great also
+            # another possiblity is using recon-all -skullstrip -clean-bm -gcut -subjid <subject name>
+
+            task_in="recon-all -i ${T1_4_parc} -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -autorecon1 -no-isrunning"
+
+            task_exec
+
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brainmask.mgz ${T1_BM_4_FS} ${clean_BM_mgz}"
+
+            task_exec
+
+            task_in="mri_mask ${FS_brain} ${T1_BM_4_FS} ${new_brain} && mv ${new_brain} ${fs_output}/${subj}/mri/brainmask.mgz && cp \
+            ${fs_output}/${subj}/mri/brainmask.mgz ${fs_output}/${subj}/mri/brainmask.auto.mgz"
+
+            task_exec
+
+            task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -noskullstrip -no-isrunning -make all"
+
+            task_exec
+
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz ${T1_brain_clean} ${fs_output}/${subj}/mri/real_T1.mgz"
+
+            task_exec
+
+            task_in="mri_convert -rl ${fs_output}/${subj}/mri/brain.mgz -rt nearest ${Lmask_o} ${fs_output}/${subj}/mri/Lmask_T1_bin.mgz"
+
+            task_exec
+
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
+
+        else
+
+            echo " recon-all already done, skipping. "
+            echo " recon-all already done, skipping. "  | tee -a ${prep_log}
+            
+            fs_parc_mgz="${fs_output}/${subj}/mri/aparc+aseg.mgz"
+            
+        fi
+    
+    elif [[ "${parc_F}" -eq 3 ]] ; then
+
+        echo
+        echo "Freesurfer flag is set, now starting FS recon-all based part of VBG" >&2
+        echo "Freesurfer flag is set, now starting FS recon-all based part of VBG" | tee -a ${prep_log}
         echo
 
         if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then

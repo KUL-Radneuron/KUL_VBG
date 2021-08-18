@@ -6,7 +6,7 @@ set -x
 # @ Stefan Sunaert -> stefan.sunaert@kuleuven.be
 # KUL_synth_cohort_gen.sh
 
-# v=0.1 - 22/01/2021
+# v=0.21 - 15/08/2021
 
 cwd="$(pwd)"
 
@@ -30,14 +30,16 @@ cat <<USAGE
     This workflow generates synthetic patients images, matching mass effect in a patient population without the lesion + synthetic lesioned brains
     We use a group of patients with a focal lesion, the lesion mask, and VBG lesion filled native images, in combination with healthy volunteer whole head T1 images
     The generated dataset consists of the product of patients X healthy volunteers X 2, as every combination is generated once only with deformation to match mass effect
-    and once with the lesion
+    and once with the lesion. Patient and Healthy volunteer T1-weighted images should be acquired from similar scanners to ensure similar signal patterns. 
+    An alternative to this is to use rescaled T1-weighted images e.g. the nu.mgz images of FreeSurfer's recon-all after conversion to .nii.gz
 
     Required arguments:
 
     -P:  Full path to patients' directory (this should contain a pair of native space VBG filled and original lesioned T1 whole head images, in 1 subfolder per patient)
     -H:  Full path to healthy controls' directory (this should contain all healthy volunteer images, each in a separate subfolder)
-    -M:  Full path to patients' lesion masks (this should contain all patients lesion masks, each in a separate subfolder)
-    -c:  Full path and file name of config file containing all patients in column 1 and all controls in column 2
+    -M:  Full path to patients' lesion masks (this should contain all patients lesion masks in T1 space, each in a separate subfolder)
+    -c:  Full path and file name of config file containing all patients in column 1 and all controls in column 2, columns should be separated by commas
+    * subfolders should be named after the subjects, e.g. sub-PT001, sub-PT002, etc.
 
     Optional arguments:
 
@@ -45,6 +47,13 @@ cat <<USAGE
     -o:  Full path to output directory
     -n:  Number of cpu for parallelisation (default is 6)
     -h:  Prints help menu
+
+    Example config file:
+
+    PT001,HV01
+    PT002,HV02
+    PT003,HV03
+
 
 USAGE
 
@@ -209,21 +218,25 @@ OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
 if [[ "$R_flag" -eq 0 ]]; then
 
-	ncpu=6
+	reg=1
 
 	echo " -R flag not set, using custom ANTs registration. "
+    echo " you have chosen to use customized ANTs registration, this takes a while" | tee -a ${prep_log}
 
 elif [[ "$R_flag" -eq 1 ]]; then
 
 	echo " -R flag set, using custom ANTs registration "
+    echo " you have chosen to use customized ANTs registration, this takes a while" | tee -a ${prep_log}
 
 elif [[ "$R_flag" -eq 2 ]]; then
 
-	echo " -R flag set, using custom antsRegistrationSyN.sh "
+    echo " -R flag set, using custom antsRegistrationSyN.sh "
+    echo " you have chosen to use antsRegistrationSyN.sh " | tee -a ${prep_log}
 
 elif [[ "$R_flag" -eq 3 ]]; then
 
-	echo " -R flag set, using custom antsRegistrationSyNQuick.sh "
+    echo " -R flag set, using custom antsRegistrationSyNQuick.sh "
+    echo " you have chosen to use antsRegistrationSyNQuick.sh, this is rather quick and dirty " | tee -a ${prep_log}
 
 fi
 
@@ -400,14 +413,13 @@ declare -a PTinHV_int
 declare -a PT_outad
 declare -a PT_outbd
 
-pow=0
+# pow=0
 
-pew=${ncpu}
+# pew=${ncpu}
+
+nvd_cu=$(nvcc --version)
 
 for pt in ${!PTs[@]}; do
-
-    ((pow++))
-    ((pow=${pow}%${pew}))
 
     if [[ ! ${PTs[$pt]} == "none" ]]; then
 
@@ -417,48 +429,112 @@ for pt in ${!PTs[@]}; do
 
         mkdir -p ${PT_intd[$pt]}
 
-        # look for inv mask, if not found make it for each pat
-
-        if [[ ! -f "${PT_intd[$pt]}/sub-${PTs[$pt]}_LM_dilms2_inv_BM.nii.gz" ]]; then 
-
-            echo "Now working on making inv Lesion masks" | tee -a ${prep_log}
-
-            task_in="fslmaths ${PT_masks[$pt]} -dilM -s 2 -thr 0.2 -save \
-            ${PT_intd[$pt]}/sub-${PTs[$pt]}_LM_dilms2.nii.gz -binv -mul \
-            ${pats_d}/sub-${PTs[$pt]}/sub-${PTs[$pt]}_Brain_clean_mask.nii.gz \
-            ${PT_intd[$pt]}/sub-${PTs[$pt]}_LM_dilms2_inv_BM.nii.gz"
-
-            task_exec &
-
-        else
-
-            echo " ${PT_intd[$pt]}/sub-${PTs[$pt]} lesion mask derivatives already done" | tee -a ${prep_log}
-
-        fi
-
-    fi
-
-    if [[ ${pow} -eq 0 ]]; then
-
-        wait
+        # define T1s, BM based on the dir
+        PT_d_in[$pt]="${pats_d}/sub-${PTs[$pt]}"
 
     fi
 
 done
 
-wait
+for im in ${!HVs[@]}; do
 
-sleep 5
+    if [[ ! ${HVs[$im]} == "none" ]]; then
+
+        HV_intd[$im]="${int}/sub-${HVs[$im]}_proc"
+
+        mkdir -p ${HV_intd[$im]}
+
+    fi
+
+done
+
+for ia in ${!HVs[@]}; do
+
+    for pti in ${!PTs[@]}; do
+
+        if [[ ! ${PTs[$pti]} == "none" ]]; then
+
+            PTinHV_int[$pti]="${HV_intd[$ia]}/sub-${PTs[$pti]}_in_${HVs[$ia]}"
+
+            mkdir -p ${PTinHV_int[$pti]}
+
+            PT_outad[$pti]="${out_SME}/sub-${PTs[$pti]}_in_${HVs[$ia]}"
+
+            PT_outbd[$pti]="${out_SP}/sub-${PTs[$pti]}_in_${HVs[$ia]}"
+
+            mkdir -p ${PT_outad[$pti]}
+
+            mkdir -p ${PT_outbd[$pti]}
+
+        fi
+    
+    done
+
+done
+
+
+for ptx in ${!PTs[@]}; do
+
+    if [[ ! ${PTs[$ptx]} == "none" ]]; then
+
+        # some modifications are needed here
+        # let's extract the brain again for the patients
+        # we use this brain and brain mask for the registration
+        # This mask should be applied to the non-filled T1s also 
+
+        if [[ ! -f "${PT_intd[$ptx]}/sub-${PTs[$ptx]}_T1w_filled_brain.nii.gz" ]]; then
+
+            if [[ -z ${nvd_cu} ]]; then
+
+                task_in="hd-bet -i ${PT_d_in[$ptx]}/sub-${PTs[$ptx]}_T1_nat_filled.nii.gz -o ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_T1w_filled_brain -tta 0 -mode accurate -s 1 -device cpu"
+
+                task_exec
+
+            else
+
+                task_in="hd-bet -i ${PT_d_in[$ptx]}/sub-${PTs[$ptx]}_T1_nat_filled.nii.gz -o ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_T1w_filled_brain -mode accurate -s 1"
+
+                task_exec
+
+            fi
+
+        else
+
+            echo " ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_T1w_filled_brain already done"
+
+        fi
+          
+        task_in="fslmaths ${PT_d_in[$ptx]}/sub-${PTs[$ptx]}_T1w.nii.gz -mas ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_T1w_filled_brain_mask.nii.gz ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_rT1w_brain.nii.gz"
+
+        task_exec
+
+        if [[ ! -f "${PT_intd[$ptx]}/sub-${PTs[$ptx]}_LM_dst_inv_BM.nii.gz" ]]; then 
+
+            echo "Now working on making inv Lesion masks" | tee -a ${prep_log}
+
+            task_in="fslmaths ${PT_masks[$ptx]} -dilM -s 2 -thr 0.3 -save \
+            ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_LM_dst.nii.gz -binv -mul \
+            ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_T1w_filled_brain_mask.nii.gz \
+            ${PT_intd[$ptx]}/sub-${PTs[$ptx]}_LM_dst_inv_BM.nii.gz"
+
+            task_exec
+
+        else
+
+            echo " ${PT_intd[$ptx]}/sub-${PTs[$ptx]} lesion mask derivatives already done" | tee -a ${prep_log}
+
+        fi
+
+    fi
+
+done
+
 
 # Loop over HVs
 
 for i in ${!HVs[@]}; do
 
     if [[ ! ${HVs[$i]} == "none" ]]; then
-
-        HV_intd[$i]="${int}/sub-${HVs[$i]}_proc"
-
-        mkdir -p ${HV_intd[$i]}
 
         # extract HVs brains
 
@@ -467,8 +543,6 @@ for i in ${!HVs[@]}; do
         # look for CUDA installation
         # if not found use hd-bet in CPU mode
         # if found use hd-bet with cuda
-        
-        nvd_cu=$(nvcc --version)
 
         if [[ ! -f "${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz" ]]; then
 
@@ -478,12 +552,12 @@ for i in ${!HVs[@]}; do
 
             if [[ -z ${nvd_cu} ]]; then
 
-                task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain -tta 0 -mode fast -s 1 -device cpu"
+                task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain -tta 0 -mode accurate -s 1 -device cpu"
 
                 task_exec
             else
 
-                task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain"
+                task_in="hd-bet -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain -mode accurate -s 1"
 
                 task_exec
 
@@ -502,20 +576,27 @@ for i in ${!HVs[@]}; do
 
             if [[ ! ${PTs[$p]} == "none" ]]; then
 
-                # define T1s, BM based on the dir
-                PT_d_in[$p]="${pats_d}/sub-${PTs[$p]}"
+                # # define T1s, BM based on the dir
+                # PT_d_in[$p]="${pats_d}/sub-${PTs[$p]}"
 
                 PTinHV_int[$p]="${HV_intd[$i]}/sub-${PTs[$p]}_in_${HVs[$i]}"
 
-                mkdir -p ${PTinHV_int[$p]}
+                # mkdir -p ${PTinHV_int[$p]}
 
                 PT_outad[$p]="${out_SME}/sub-${PTs[$p]}_in_${HVs[$i]}"
 
                 PT_outbd[$p]="${out_SP}/sub-${PTs[$p]}_in_${HVs[$i]}"
 
-                mkdir -p ${PT_outad[$p]}
+                # mkdir -p ${PT_outad[$p]}
 
-                mkdir -p ${PT_outbd[$p]}
+                # mkdir -p ${PT_outbd[$p]}
+
+                # some modifications are needed here
+                # let's extract the brain again for the patients
+                # we use this brain and brain mask for the registration
+                # This mask should be applied to the non-filled T1s also 
+
+                # exit 2
 
                 if [[ ! -f "${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_Warped.nii.gz" ]]; then
 
@@ -523,37 +604,31 @@ for i in ${!HVs[@]}; do
 
                     if [[ ${reg} -eq 1 ]]; then
 
-                        echo " you have chosen to use customized ANTs registration, this takes a while" | tee -a ${prep_log}
-
                         task_in="export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${ncpu} ; antsRegistration --dimensionality 3 --float 0 --collapse-output-transforms 1 -u 1 \
                         --output [ ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_,${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_Warped.nii.gz,${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_InverseWarped.nii.gz ] \
                         --interpolation Linear --use-histogram-matching 0 --winsorize-image-intensities [ 0.005,0.995 ] \
-                        -x [ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_Brain_clean_mask.nii.gz, NULL ] \
-                        --initial-moving-transform [ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz,1 ] --transform Rigid[ 0.1 ] \
-                        --metric MI[ ${HV_intd}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz,1,32,Regular,0.25 ] \
+                        -x [ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain_mask.nii.gz, NULL ] \
+                        --initial-moving-transform [ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain.nii.gz,1 ] --transform Rigid[ 0.1 ] \
+                        --metric MI[ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain.nii.gz,1,32,Regular,0.25 ] \
                         --convergence [ 1000x500x250x100,1e-6,10 ] --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox --transform Affine[ 0.1 ] \
-                        --metric MI[ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz,1,64,Regular,0.5 ] \
+                        --metric MI[ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain.nii.gz,1,64,Regular,0.5 ] \
                         --convergence [ 1000x500x250x100,1e-6,10 ] --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox --transform SyN[ 0.1,3,0 ] \
-                        --metric CC[ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz,1,4 ] \
+                        --metric CC[ ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain.nii.gz,1,4 ] \
                         --convergence [ 200x100x75x25,1e-8,10 ] --shrink-factors 8x4x2x1 --smoothing-sigmas 3x2x1x0vox --verbose 1"
 
                         task_exec
 
                     elif [[ ${reg} -eq 2 ]]; then
 
-                        echo " you have chosen to use antsRegistrationSyN.sh " | tee -a ${prep_log}
-
-                        task_in="antsRegistrationSyN.sh -d 3 -f ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz -m ${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz \
-                        -x ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_Brain_clean_mask.nii.gz -t s -n ${ncpu} -o ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_"
+                        task_in="antsRegistrationSyN.sh -d 3 -f ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz -m ${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain.nii.gz \
+                        -x ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain_mask.nii.gz -t s -n ${ncpu} -o ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_"
 
                         task_exec
 
                     elif [[ ${reg} -eq 3 ]]; then
 
-                        echo " you have chosen to use antsRegistrationSyNQuick.sh, this is rather quick and dirty " | tee -a ${prep_log}
-
-                        task_in="antsRegistrationSyNQuick.sh -d 3 -f ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz -m ${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz \
-                        -x ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz,${PT_d_in[$p]}/sub-${PTs[$p]}_Brain_clean_mask.nii.gz -t s -n ${ncpu} -o ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_"
+                        task_in="antsRegistrationSyNQuick.sh -d 3 -f ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain.nii.gz -m ${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain.nii.gz \
+                        -x ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz,${PT_intd[$p]}/sub-${PTs[$p]}_T1w_filled_brain_mask.nii.gz -t s -n ${ncpu} -o ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_"
 
                         task_exec
 
@@ -561,18 +636,27 @@ for i in ${!HVs[@]}; do
 
                 fi
 
+                # exit 2
+
                 if [[ ! -f "${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz" ]]; then
 
-                    task_in="antsApplyTransforms -d 3 -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -r ${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz -t ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_1InverseWarp.nii.gz -t [${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_0GenericAffine.mat,1] -n LanczosWindowedSinc \
-                    && antsApplyTransforms -d 3 -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz -o ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -r ${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz -t ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_1InverseWarp.nii.gz -t [${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_0GenericAffine.mat,1] -n multilabel"
+                    task_in="antsApplyTransforms -d 3 -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_reori.nii.gz -o ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -r ${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz \
+                    -t [${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_0GenericAffine.mat,1] -t ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_1InverseWarp.nii.gz -n LanczosWindowedSinc \
+                    && antsApplyTransforms -d 3 -i ${HV_intd[$i]}/sub-${HVs[$i]}_T1w_brain_mask.nii.gz -o ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -r ${PT_d_in[$p]}/sub-${PTs[$p]}_T1_nat_filled.nii.gz \
+                    -t [${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_0GenericAffine.mat,1] -t ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_1InverseWarp.nii.gz -n multilabel"
 
                     task_exec
 
-                    task_in="fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -sub ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dilms2.nii.gz ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dilms2_inv.nii.gz \
-                    && mrcalc -force -quiet -nthreads ${ncpu} ${PT_d_in[$p]}/sub-${PTs[$p]}_T1w.nii.gz ${PT_d_in[$p]}/sub-${PTs[$p]}_Brain_clean_mask.nii.gz -mult ${PT_intd[$p]}/sub-${PTs[$p]}_Brain.nii.gz && sleep 5 \
-                    && mrcalc -force -quiet -nthreads ${ncpu} ${PT_intd[$p]}/sub-${PTs[$p]}_Brain.nii.gz \
-                    ` mrstats -force -quiet -ignorezero -mask ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dilms2_inv_BM.nii.gz -output mean ${PT_intd[$p]}/sub-${PTs[$p]}_Brain.nii.gz ` -div  \
-                    ` mrstats -force -quiet -ignorezero -mask ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -output mean ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_InverseWarped.nii.gz ` -mult ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz"
+                    task_in="fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -sub ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst.nii.gz ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst_inv.nii.gz"
+                    
+                    task_exec
+
+                    sleep 5
+
+                    task_in="mrcalc -force -quiet -nthreads ${ncpu} ${PT_intd[$p]}/sub-${PTs[$p]}_rT1w_brain.nii.gz \
+                    ` mrstats -force -quiet -ignorezero -mask ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst_inv_BM.nii.gz -output mean ${PT_intd[$p]}/sub-${PTs[$p]}_rT1w_brain.nii.gz ` -div  \
+                    ` mrstats -force -quiet -ignorezero -mask ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -output mean ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_InverseWarped.nii.gz ` \
+                    -mult ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz"
 
                     task_exec
 
@@ -582,15 +666,39 @@ for i in ${!HVs[@]}; do
 
                 if [[ ! -f "${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz" ]]; then
 
-                    task_in="fslmaths ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz \
-                    -mul ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dilms2.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
-                    && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -binv -mul ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -save \
-                    ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz -restart ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mul \
-                    ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dilms2_inv.nii.gz -add ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
-                    -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz -save ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
-                    -restart ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
-                    -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
+                    # task_in="fslmaths ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz \
+                    # -mul ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dmst.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
+                    # && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -binv -mul ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -save \
+                    # ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz -restart ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mul \
+                    # ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dmst_inv.nii.gz -add ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
+                    # -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz -save ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
+                    # -restart ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
+                    # -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
 
+                    task_in="fslmaths ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz \
+                    -mul ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
+                    && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -binv -mul ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz \
+                    ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz \
+                    && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mul ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst_inv.nii.gz \
+                    ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain_punched.nii.gz"
+
+                    task_exec
+
+                    task_in="fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain_punched.nii.gz \
+                    -add ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain.nii.gz \
+                    && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain.nii.gz -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz \
+                    ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
+                    && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
+                    -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
+                    
+
+                    # task_in="ImageMath 3 ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain.nii.gz addtozero \
+                    # ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain_punched.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
+                    # && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain.nii.gz -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz \
+                    # ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
+                    # && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
+                    # -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
+                    
                     task_exec
 
                 else

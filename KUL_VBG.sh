@@ -10,13 +10,15 @@
 #####################################
 
 
-v="0.55_10082021_beta"
+v="0.56_14082021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
 # this maintains subject specificity and diseased hemisphere information but replaces lesioned tissue with sham brain 
 # to do:
-# (1) Add option for FreeSurfer or FastSurfer ;)
+# (1) Add MSBP
+# (2) Add a quick parcellation solution using labelpropagation in ANTs
+# (3) Add a MALP-EM based parcellation stream
 
 # ----------------------------------- MAIN --------------------------------------------- 
 # this script uses "preprocessing control", i.e. if some steps are already processed it will skip these
@@ -1129,25 +1131,37 @@ function KUL_antsBETp {
     # this approach ensures minimal failures in either case
     # if HD-BET excludes too much of a brain or if ANTs includes too much
 
+    # task_in="source /anaconda3/bin/activate ptc && hd-bet -i ${prim_in} -o ${output} -tta 0 -mode fast -s 1 -device cpu"
+
+    # task_exec
+
     nvd_cu=$(nvcc --version)
 
     if [[ ${BET_m} -eq 1 ]]; then
 
         echo "HD-BET is selected, will use this for brain extraction" | tee -a ${prep_log}
 
-        echo "Assuming a local installation of hd-bet, if yours is installed different changed line 1144" | tee -a ${prep_log}
-
-        # task_in="source /anaconda3/bin/activate ptc && hd-bet -i ${prim_in} -o ${output} -tta 0 -mode fast -s 1 -device cpu"
-
-        # task_exec
+        echo "Assuming a local installation of hd-bet, if yours is installed differently, please change line 1157 accordingly" | tee -a ${prep_log}
 
         if [[ -z ${nvd_cu} ]]; then
 
             HDB_type=" -tta 0 -mode accurate -s 1 -device cpu "
+            echo " Running HD-BET without CUDA " | tee -a ${prep_log}
+
 
         else
 
-            HDB_type=" -tta 0 -mode accurate -s 1 "
+            HDB_type=" -mode accurate -s 1 "
+            echo " Running HD-BET with CUDA " | tee -a ${prep_log}
+
+        fi
+
+        # if hd-bet in GPU mode fails, run CPU mode
+        if [[ ! -f "${T1_brain_clean}" ]]; then
+
+            task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i -tta 0 -mode accurate -s 1 -device cpu"
+
+            task_exec
 
         fi
 
@@ -2509,12 +2523,14 @@ if [[ "${E_flag}" -eq 0 ]]; then
         task_exec
         
         task_in="antsApplyTransforms -d 3 -i ${Lmask_binv_s3_nobrain} -o ${Lmask_binv_s3_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
-        && antsApplyTransforms -d 3 -i ${T1_fin_Lfill_2} -o ${T1_fin_Lfill_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
-        && antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${T1_BM_4_FS} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] -n MultiLabel \
+        && antsApplyTransforms -d 3 -i ${T1_fin_Lfill_2} -o ${T1_fin_Lfill_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] 
+        && fslmaths ${T1_fin_Lfill_n_ori} -bin ${T1_BM_4_FS} \
         && fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
         ${T1_Brain_4_FS} && mri_convert -i ${T1_4_FS} -o ${T1_4_parc} --conform"
-
+        
         task_exec
+
+        # && antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${T1_BM_4_FS} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] -n MultiLabel \
         
         # task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
         # && flirt -in ${Lmask_binv_s3_nobrain} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
@@ -2783,10 +2799,12 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 if [[ -z ${nvd_cu} ]]; then
 
                     FaSu_cpu=" --no_cuda "
+                    echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
 
                 else
 
                     FaSu_cpu=""
+                    echo " Running FastSurfer with CUDA " | tee -a ${prep_log}
 
                 fi
 

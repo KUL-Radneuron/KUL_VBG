@@ -10,6 +10,7 @@ b) FSL v6.0
 c) MRtrix3 v3.0.2-64-g3eadb340
 d) HD-BET
 f) Freesurfer v6.0
+e) FastSurfer
 
 Inputs:
 
@@ -24,22 +25,22 @@ Optional:
 2- Specify number of parallel workers used (input to -n flag)
 3- Specify type of filling (default = uVBG, to activate bVBG use the -t flag)
 4- Specify age group of participant (default = adult, to activate pediatric friendly mode specify the -p flag)
-5- To run parcellation specify the after the lesion filling is finished, specify the -P flag with input 1 for Freesurfer recon-all and 2 for FastSurfer.
+5- To run parcellation specify the after the lesion filling is finished, specify the -P flag with input 1=Freesurfer, 2=FastSurfer, 3=FastSurfer/FreeSurfer hybrid
 6- Verbose mode = -v
 
 Examples:
 
-    - Using the unilateral VBG approach and HD-BET for brain extraction, input data is in BIDS format with only 1 session
-    KUL_VBG.sh -p pat001 -b -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -B 1
+    - Using the unilateral VBG approach and HD-BET for brain extraction, input data is in BIDS format with only 1 session, using FreeSurfer for parcellation
+    KUL_VBG.sh -p pat001 -b -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -B 1 -P 1 -v
     
-    - Using the bilateral VBG approach and HD-BET for brain extraction, input data is not in BIDS, FreeSurfer is also called at the end
-    KUL_VBG.sh -p pat001 -a /fullpath/sub-PT_T1w.nii.gz -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -t -B 1 -F
+    - Using the bilateral VBG approach and HD-BET for brain extraction, input data is not in BIDS, using FastSurfer for parcellation
+    KUL_VBG.sh -p pat001 -a /fullpath/sub-PT_T1w.nii.gz -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -t -B 1 -P 2 -v
 	
 
 Purpose:
 
     The purpose of this workflow is to generate a lesion filled image, with healthy looking synthetic tissue in place of the lesion
-    Essentially excising the lesion and grafting over the brain tissue defect in the MR image space
+    Essentially excising the lesion and grafting over the resulting defect in the T1 MR image space.
     
 
 Required arguments:
@@ -49,7 +50,6 @@ Required arguments:
     -l:  full path and file name to lesion mask file per session
     -z:  space of the lesion mask used (only T1 supported in this version)
     -a:  Input precontrast T1WIs
-
 
 Optional arguments:
 
@@ -67,11 +67,15 @@ Optional arguments:
 
 Notes: 
 
-    - You can use -b and the script will find your BIDS files automatically
-    - If your data is not in BIDS, then use -a without -b
-    - This version is for validation only.
-    - In case of trouble with HD-BET see lines 1124 - 1200)
-    - cook_template_4VBG requires two brains with unilateral lesions on opposing sides
-    - it is meant to facilitate the grafting process and minimize intensity differences
+    - Input flags -b and -a are mutually exclusive, if your data is in BIDS use -b, and if not then specify exact path and name for the patient's T1.nii.gz 
+    - In case of trouble with HD-BET see lines (1140 - 1170)
     - You need a high resolution T1 WI and a lesion mask in the same space for VBG to run
     - If you end up with an empty image, it is possible you have a mismatch between the T1 and lesion mask
+    - The lesion mask can be generated with any lesion segmentation tool.
+    - The lesion mask needs to specific to the lesion with voxel values=1 encoding the lesion and 0 for the healthy tissue.
+
+Installation instructions:
+
+    - Clone this repository, add the installation directory to your path in Bash shell.
+    - Ensure that all dependencies are met, FastSurfer is only required if you will use it for parcellation (i.e. with -P 2 or -P 3)
+

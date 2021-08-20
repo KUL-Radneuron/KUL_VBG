@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.56_14082021_beta"
+v="0.57_20082021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -1141,7 +1141,7 @@ function KUL_antsBETp {
 
         echo "HD-BET is selected, will use this for brain extraction" | tee -a ${prep_log}
 
-        echo "Assuming a local installation of hd-bet, if yours is installed differently, please change line 1157 accordingly" | tee -a ${prep_log}
+        echo "Assuming a local installation of hd-bet, if yours is installed differently, please change lines 1140 - 1170 accordingly" | tee -a ${prep_log}
 
         if [[ -z ${nvd_cu} ]]; then
 
@@ -1156,6 +1156,10 @@ function KUL_antsBETp {
 
         fi
 
+        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i ${HDB_type}"
+
+        task_exec
+
         # if hd-bet in GPU mode fails, run CPU mode
         if [[ ! -f "${T1_brain_clean}" ]]; then
 
@@ -1164,10 +1168,6 @@ function KUL_antsBETp {
             task_exec
 
         fi
-
-        task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i ${HDB_type}"
-
-        task_exec
 
         task_in="mrcalc -force -nthreads ${ncpu} ${output}_i_mask.nii.gz ${L_mask_MNI1c_binv} -mul ${L_mask_MNI1c_bin} -add ${output}_brain_mask_c_h_MNI1aff.nii.gz \
         && ImageMath 3 ${output}_brain_mask_c_hf_MNI1aff.nii.gz FillHoles ${output}_brain_mask_c_h_MNI1aff.nii.gz \
@@ -2524,22 +2524,11 @@ if [[ "${E_flag}" -eq 0 ]]; then
         
         task_in="antsApplyTransforms -d 3 -i ${Lmask_binv_s3_nobrain} -o ${Lmask_binv_s3_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] \
         && antsApplyTransforms -d 3 -i ${T1_fin_Lfill_2} -o ${T1_fin_Lfill_n_ori} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] 
-        && fslmaths ${T1_fin_Lfill_n_ori} -bin ${T1_BM_4_FS} \
+        && antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${T1_BM_4_FS} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] -n MultiLabel
         && fslmaths ${str_pp}_T1_reori2std.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
         ${T1_Brain_4_FS} && mri_convert -i ${T1_4_FS} -o ${T1_4_parc} --conform"
         
         task_exec
-
-        # && antsApplyTransforms -d 3 -i ${clean_mask_nat} -o ${T1_BM_4_FS} -r ${str_pp}_brain_mask_init.nii.gz -t [${str_pp}_T1_reori_aff2MNI_0GenericAffine.mat,1] -n MultiLabel \
-        
-        # task_in="convert_xfm -omat ${T1_reori_mat_inv} -inverse ${T1_reori_mat} && sleep 5 \
-        # && flirt -in ${Lmask_binv_s3_nobrain} -out ${Lmask_binv_s3_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        # && sleep 5 && flirt -in ${T1_fin_Lfill_2} -out ${T1_fin_Lfill_n_ori} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        # && sleep 5 && flirt -in ${clean_mask_nat} -out ${T1_BM_4_FS} -ref ${T1_orig} -applyxfm -init ${T1_reori_mat_inv} \
-        # && fslmaths ${str_pp}_T1_thr.nii.gz -mul ${Lmask_binv_s3_n_ori} -add ${T1_fin_Lfill_n_ori} -thr 0 -save ${T1_4_FS} -mul ${T1_BM_4_FS} \
-        # ${T1_Brain_4_FS}"
-
-        # task_exec
 
     else
 
@@ -3304,8 +3293,8 @@ echo " execution took ${run_time_m} minutes, or approximately ${run_time_h} hour
 # 
 # docker run -it --rm -v $(pwd)/BIDS:/bids_dir \
 # -v $(pwd)/BIDS/derivatives:/output_dir \
-# -v /NI_apps/freesurfer/license.txt:/opt/freesurfer/license.txt \
+# -v /usr/local/freesurfer/license.txt:/opt/freesurfer/license.txt \
 # sebastientourbier/multiscalebrainparcellator:v1.1.1 /bids_dir /output_dir participant \
-# --participant_label PT_002 --isotropic_resolution 1.0 --thalamic_nuclei \
+# --participant_label PT_028 --isotropic_resolution 1.0 --thalamic_nuclei \
 # --brainstem_structures --skip_bids_validator --fs_number_of_cores 12 \
 # --multiproc_number_of_cores 12 2>&1 >> $(pwd)/MSBP_trial_run.txt

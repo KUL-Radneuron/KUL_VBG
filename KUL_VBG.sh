@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.58_13102021_beta"
+v="0.59_13102021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -173,7 +173,7 @@ else
         E) #Extra-axial flag
 			E_flag=1	
         ;;
-        p) #Extra-axial flag
+        p) #Pediatric flag
 			p_flag=1	
         ;;
         n) #parallel
@@ -2730,8 +2730,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
     elif [[ "${parc_F}" -eq 3 ]] ; then
 
         echo
-        echo "Freesurfer flag is set, now starting FS recon-all based part of VBG" >&2
-        echo "Freesurfer flag is set, now starting FS recon-all based part of VBG" | tee -a ${prep_log}
+        echo "Hybrid parcellation flag is set, now starting FastSurfer/FreeSurfer hybrid recon-all based part of VBG" >&2
+        echo "Hybrid parcellation flag is set, now starting FastSurfer/FreeSurfer hybrid recon-all based part of VBG" | tee -a ${prep_log}
         echo
 
         if [[ "$bids_flag" -eq 1 ]] && [[ "$o_flag" -eq 0 ]]; then
@@ -2785,23 +2785,20 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             nvd_cu=$(nvcc --version)
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
+            nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+            if [[ ! -z ${nvram} ]]; then
+                if [[ ${nvram} -lt 6000 ]]; then
+                    batch_fasu="4"
+                elif [[ ${nvram} -gt 6500 ]] && [[ ${nvram} -lt 7000 ]]; then
+                    batch_fasu="6"
+                elif [[ ${nvram} -gt 7000 ]]; then
+                    batch_fasu="8"
+                fi
+            else
+                batch_fasu="4"
+            fi
 
-            #FS_lic="$FREESURFER_HOME/license.txt"
-            
-            # this can be helpful for HPC users for now
-            # Should be changed to an optional input
-            #if [[ ! -f ${FS_lic} ]]; then
-            #
-            #    FS_lic="$FREESURFER_HOME/.license"
-            #
-            #    if [[ ! -f ${FS_lic} ]]; then
-            #
-            #        echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
-            #        exit 2
-            #
-            #    fi
-            #
-            #fi
+
 
             if [[ ! -z ${FaSu_loc} ]]; then
 
@@ -2822,7 +2819,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
                 --sid ${subj} --sd ${fasu_output}/${subj} --parallel --threads ${ncpu} \
-                --fs_license ${FS_lic} --py python ${FaSu_cpu} --ignore_fs_version --batch 6"
+                --fs_license ${FS_lic} --py python ${FaSu_cpu} --ignore_fs_version --batch ${batch_fasu}"
 
                 task_exec
 

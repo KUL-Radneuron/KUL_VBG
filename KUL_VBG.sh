@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.57_20082021_beta"
+v="0.58_13102021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image

@@ -260,6 +260,26 @@ echo $bids_subj
 
 # check for required inputs and define your workflow accordingly
 
+# Check if the FreeSurfer License can be found
+FS_lic_search[0]="$FREESURFER_HOME/license.txt"
+FS_lic_search[1]="$FREESURFER_HOME/.license.txt"
+FS_lic_search[3]="$FREESURFER_HOME/.license"
+FS_lic_search[4]="$FS_LICENSE"
+for s in ${FS_lic_search[@]}; do
+    if [ ! -z "$s" ]; then
+        if [[ -f $s ]]; then
+            # here we set the found FS_lic license file of freesurfer
+            FS_lic=$s
+            break
+        fi   
+    fi
+done
+if [[ ! -f ${FS_lic} ]]; then
+    echo "Unable to find a FreeSurfer license file, please make sure it is located in $FREESURFER_HOME with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
+    exit 2
+fi
+
+
 srch_Lmask_str=($(basename ${L_mask}))
 srch_Lmask_dir=($(dirname ${L_mask}))
 srch_Lmask_o=($(find ${srch_Lmask_dir} -type f | grep  ${srch_Lmask_str}))
@@ -2766,22 +2786,22 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
 
-            FS_lic="$FREESURFER_HOME/license.txt"
+            #FS_lic="$FREESURFER_HOME/license.txt"
             
             # this can be helpful for HPC users for now
             # Should be changed to an optional input
-            if [[ ! -f ${FS_lic} ]]; then
-
-                FS_lic="$FREESURFER_HOME/.license"
-
-                if [[ ! -f ${FS_lic} ]]; then
-
-                    echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
-                    exit 2
-
-                fi
-
-            fi
+            #if [[ ! -f ${FS_lic} ]]; then
+            #
+            #    FS_lic="$FREESURFER_HOME/.license"
+            #
+            #    if [[ ! -f ${FS_lic} ]]; then
+            #
+            #        echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
+            #        exit 2
+            #
+            #    fi
+            #
+            #fi
 
             if [[ ! -z ${FaSu_loc} ]]; then
 
@@ -2802,7 +2822,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
                 --sid ${subj} --sd ${fasu_output}/${subj} --parallel --threads ${ncpu} \
-                --fs_license ${FS_lic} --py python ${FaSu_cpu}"
+                --fs_license ${FS_lic} --py python ${FaSu_cpu} --ignore_fs_version --batch 6"
 
                 task_exec
 
@@ -2898,22 +2918,22 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         echo "${recall_scripts}/recon-all.done"
 
-        FS_lic="$FREESURFER_HOME/license.txt"
-            
+        #FS_lic="$FREESURFER_HOME/license.txt"
+        #    
         # this can be helpful for HPC users for now
         # Should be changed to an optional input
-        if [[ ! -f ${FS_lic} ]]; then
-
-            FS_lic="$FREESURFER_HOME/.license"
-
-            if [[ ! -f ${FS_lic} ]]; then
-
-                echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
-                exit 2
-
-            fi
-
-        fi
+        #if [[ ! -f ${FS_lic} ]]; then
+        #
+        #    FS_lic="$FREESURFER_HOME/.license"
+        #
+        #    if [[ ! -f ${FS_lic} ]]; then
+        #
+        #        echo "Unable to find FS license, please make sure FS license is located in FS_home with a name of either license.txt or .license, exiting " | tee -a ${prep_log}
+        #        exit 2
+        #
+        #    fi
+        #
+        #fi
 
         if [[ ! -f ${fs_output}/${subj}/label/rh.aparc.annot ]]; then
         

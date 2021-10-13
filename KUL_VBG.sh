@@ -2802,7 +2802,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 task_in="run_fastsurfer.sh --t1 ${T1_4_parc} \
                 --sid ${subj} --sd ${fasu_output}/${subj} --parallel --threads ${ncpu} \
-                --fs_license ${FS_lic} --py python ${FaSu_cpu}"
+                --fs_license ${FS_lic} --py python ${FaSu_cpu} --ignore_fs_version --batch 6"
 
                 task_exec
 

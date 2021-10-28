@@ -698,15 +698,6 @@ for i in ${!HVs[@]}; do
 
                 if [[ ! -f "${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz" ]]; then
 
-                    # task_in="fslmaths ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz \
-                    # -mul ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dmst.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
-                    # && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -binv -mul ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -save \
-                    # ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz -restart ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mul \
-                    # ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dmst_inv.nii.gz -add ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
-                    # -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz -save ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
-                    # -restart ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
-                    # -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
-
                     task_in="fslmaths ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz \
                     -mul ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
                     && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -binv -mul ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz \
@@ -722,14 +713,6 @@ for i in ${!HVs[@]}; do
                     ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
                     && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
                     -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
-                    
-
-                    # task_in="ImageMath 3 ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain.nii.gz addtozero \
-                    # ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain_punched.nii.gz ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_lesion.nii.gz \
-                    # && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w_brain.nii.gz -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz \
-                    # ${PT_outbd[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SP_T1w.nii.gz \
-                    # && fslmaths ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_Warped1.nii.gz -mas ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz \
-                    # -add ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_skull.nii.gz ${PT_outad[$p]}/sub-${HVs[$i]}_in_${PTs[$p]}_SME_T1w.nii.gz"
                     
                     task_exec
 

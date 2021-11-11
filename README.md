@@ -34,11 +34,17 @@ The graphical solution of the VBG workflow is show here:
 VBG was tested in Mac OSX, Ubuntu 18.0 and CentOS. 
 
 **Updated Dependencies:**
+
 a) ANTs v2.3.1 and ANTsX scripts
+
 b) FSL v6.0
+
 c) MRtrix3 v3.0.2-64-g3eadb340
+
 d) HD-BET
+
 f) Freesurfer v6.0
+
 e) FastSurfer
 
 

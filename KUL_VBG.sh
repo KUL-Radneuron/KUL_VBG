@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.59_13102021_beta"
+v="0.60_28102021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -2386,9 +2386,9 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
             echo "${H_hemi_mask}" | tee -a ${prep_log}
 
+            T1_filled1=${Temp_T1_filled1}
+            
             stitched_T1=${tmp_s2T1_CSFGMCBWM}
-
-            stitched_T1=${stitched_T1_temp}
 
         elif [[ "${L_ovRt_2_total}" -gt 65 ]]; then
 

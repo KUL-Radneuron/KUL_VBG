@@ -1,6 +1,6 @@
 # KUL_VBG
 
-KUL_VBG or "Virtual brain grafting" enables whole brain parcellation in the presence of large lesions.
+KUL_VBG or "KULeuven - Virtual brain grafting" enables whole brain parcellation in the presence of large lesions.
 
 Whole brain parcellation means labeling the brain in parts, gyri, etc...
 Many parcellation software packages fail in the presence of large brain lesions.
@@ -29,9 +29,7 @@ The graphical solution of the VBG workflow is show here:
 
 ## Using VBG
 
-### requirements
-
-VBG was tested in Mac OSX, Ubuntu 18.0 and CentOS. 
+VBG was tested in Mac OSX, WSL2 on WIN11, Ubuntu 18.0, 20.04 and CentOS. 
 
 **Updated Dependencies:**
 

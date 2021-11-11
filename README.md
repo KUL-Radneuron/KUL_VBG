@@ -1,5 +1,25 @@
 # KUL_VBG
+
+KUL_VBG or "Virtual brain grafting" enables whole brain parcellation in the presence of large lesions.
+Whole brain parcellation means labeling the brain in parts, gyri, etc...
+Many parcellation software packages fail in the presence of large brain lesions.
+The approach taken here is to:
+- extract the gross brain lesion using a mask
+- replace the brain lesion with normal looking tissue (hence virtual brain grafting)
+- run parellation software like freesufer or fastsurfer (which only work well on non-lesioned brains)
+- reinsert the lesion mask into the parcellation 
+
+## Introduction 
+
+For reference we point to the paper published in Neuroimage, 2021 available here: https://doi.org/10.1016/j.neuroimage.2021.117731
+
+## Graphical abstract
+
+
+
 A workflow to allow Freesurfer recon-all to run on brain images with large lesions.
+
+
 VBG is a bash script tested in Mac OSX, Ubuntu 18.0 and CentOS. 
 
 The first commit on this repository corresponds to the version of the workflow used in the preprint "Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions. Radwan et al., 2020, DOI: https://doi.org/10.1101/2020.09.30.20204701, available via: https://www.medrxiv.org/content/10.1101/2020.09.30.20204701v1). This work was published in Neuroimage, 2021 available here: https://doi.org/10.1016/j.neuroimage.2021.117731

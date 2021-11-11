@@ -323,7 +323,11 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 			
 		# now we need to search for the images
 		# then also find which modalities are available and set wf accordingly
-			
+
+        ### STEFAN NEED TO DO: check what is the best input T1w: with or whitout Gd?
+        ### to select use something like:
+        ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
+
 		search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep FLAIR.nii.gz));
@@ -371,8 +375,12 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 	if [[ "$num_sessions" -eq 1 ]]; then 
 			
 		echo " One session " $ses " specified in BIDS dir, good."
+
+		### STEFAN NEED TO DO: check what is the best input T1w: with or whitout Gd?
+        ### to select use something like:
+        ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		
-		search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep flair.nii.gz));
 		
@@ -392,6 +400,9 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 
     fi
 
+
+    
+    ### STEFAN NEED TO DO: prefer to set KUL_compute/sub-participant/VBG as default output?
     if [[ "$o_flag" -eq 0 ]]; then
 
         output_d="${cwd}/BIDS/derivatives/output_VBG/${subj}${ses_long}"
@@ -1086,6 +1097,7 @@ function task_exec {
 
     wait ${pid}
 
+    ### STEFAN NEED TO DO: is the sleep needed, or can it be shorter?
     sleep 5
 
     if [ $? -eq 0 ]; then
@@ -1155,6 +1167,11 @@ function KUL_antsBETp {
 
     # task_exec
 
+    ### STEFAN NEED TO DO: nvcc is not always installed even if you have a working nvidia GPU
+    ### it would be better to check the available free GPU mem
+    ### This can be done with, outputs kb
+    ### nvidia-smi --query-gpu=memory.free --format=csv
+    ### and if more the 4096 continue with GPU
     nvd_cu=$(nvcc --version)
 
     if [[ ${BET_m} -eq 1 ]]; then

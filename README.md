@@ -2,7 +2,25 @@
 A workflow to allow Freesurfer recon-all to run on brain images with large lesions.
 VBG is a bash script tested in Mac OSX, Ubuntu 18.0 and CentOS. 
 
-The first commit on this repository corresponds to the version of the workflow used in the preprint "Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions. Radwan et al., 2020, DOI: https://doi.org/10.1101/2020.09.30.20204701, available via: https://www.medrxiv.org/content/10.1101/2020.09.30.20204701v1). This work was published in Neuroimage, 2021 available here: https://doi.org/10.1016/j.neuroimage.2021.117731
+## Introduction 
+
+For reference we point to the paper published in Neuroimage, 2021 available here: https://doi.org/10.1016/j.neuroimage.2021.117731
+
+**The first commit on this repository branch "Orig_doi.org/10.1016/j.neuroimage.2021.117731" is the version used in the preprint and published article "Virtual brain grafting: Enabling whole brain parcellation in the presence of large lesions. Radwan et al., 2020 and 2021, DOIs: https://doi.org/10.1101/2020.09.30.20204701, and https://doi.org/10.1016/j.neuroimage.2021.117731**
+
+**** Further development, updates and bug fixes have been implemented on to the "master" branch of this repo, and the "dev" branch is for updates/development currently in progress.****
+
+## Posing the problem and solution
+
+An image to explain the problem: Freesurfer will not parcellate these brains
+
+![VBG fig1](figs4readme/fig1.jpg)
+
+The graphical solution of the VBG workflow is shown here:
+
+![VBG fig1](figs4readme/fig2.jpg)
+
+## Using VBG
 
 **Updated Dependencies:**
 a) ANTs v2.3.1 and ANTsX scripts
@@ -10,6 +28,8 @@ b) FSL v6.0
 c) MRtrix3 v3.0.2-64-g3eadb340
 d) HD-BET
 f) Freesurfer v6.0
+
+** Check (https://github.com/treanus/KUL_Linux_Installation.git) for help with setting up your environment with different neuroimaging packages.
 
 Inputs:
 
@@ -45,7 +65,7 @@ Purpose:
 Required arguments:
 
     -p:  BIDS participant name (anonymised name of the subject without the "sub-" prefix)
-    -b:  if data is in BIDS
+    -b:  if data is in BIDS, KUL_VBG automatically finds it, output and processing dirs are set to ./BIDS/derivatives/output_VBG
     -l:  full path and file name to lesion mask file per session
     -z:  space of the lesion mask used (only T1 supported in this version)
     -a:  Input precontrast T1WIs
@@ -60,7 +80,7 @@ Optional arguments:
     -F:  Run Freesurfer recon-all, generate aparc+aseg + lesion and lesion report
     -P:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
     -m:  full path to intermediate output dir
-    -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
+    -o:  full path to output dir (if not set reverts to default output ./VBG_out/output_VBG)
     -n:  number of cpu for parallelisation (default is 6)
     -v:  show output from mrtrix commands
     -h:  prints help menu

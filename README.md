@@ -51,6 +51,20 @@ e) FastSurfer
 
 ## Examples
 
+Demo data is provided under /KUL_VBG/Test_data/
+
+#### Example1:
+KUL_VBG.sh -S PT001 -a "path_2_VBG"/KUL_VBG/Test_data/Pats/sub-PT001/sub-PT001_T1w.nii.gz -n 6 -l "path_2_VBG"/KUL_VBG/Test_data/LMs/sub-PT001_Lesion_mask -z T1 -t -B 1 -P 2 -v
+
+*** The command above tells KUL_VBG to run for subject PT001, using the T1 images (provided as input to -S), the lesion mask specified (input to -l) is in the same space as the T1 images (input to -z). We're using HD-BET for brain extraction (-B 1), and selecting FastSurfer for parcellation (-P 2) with verbos output to command line (-v). The intermediate dir and output dir flags are omitted, which means that KUL_VBG will save intermediate outputs to the current working directory under $(pwd)/VBG_out/proc_VBG and the final outputs will be save to $(pwd)/VBG_out/output_VBG ***
+
+#### Example2:
+KUL_VBG.sh -S PT001 -b -n 6 -l "path_2_VBG"/KUL_VBG/Test_data/LMs/sub-PT001_Lesion_mask -z T1 -t -B 1 -P 2 -v
+
+*** This command tells KUL_VBG to run for subject PT001, and to automatically find the input anatomical image in the BIDS directory under the current working directoy. (N.B. this can only be used if you are in the parent folder of the BIDS directoy, i.e. if you are in a folder, the BIDS folder should be visible to you). The rest is the same as example 1, except the intermediate and output directories, which by default will be placed under BIDS/derivatives/proc_VBG and output_VBG ***
+
+## Instructions
+
 Inputs:
 
 Obligatory: 
@@ -70,10 +84,10 @@ Optional:
 Examples:
 
     - Using the unilateral VBG approach and HD-BET for brain extraction, input data is in BIDS format with only 1 session, using FreeSurfer for parcellation
-    KUL_VBG.sh -p pat001 -b -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -B 1 -P 1 -v
+    KUL_VBG.sh -S pat001 -b -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -B 1 -P 1 -v
     
     - Using the bilateral VBG approach and HD-BET for brain extraction, input data is not in BIDS, using FastSurfer for parcellation
-    KUL_VBG.sh -p pat001 -a /fullpath/sub-PT_T1w.nii.gz -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -t -B 1 -P 2 -v
+    KUL_VBG.sh -S pat001 -a /fullpath/sub-PT_T1w.nii.gz -n 6 -l /fullpath/lesion_T1w.nii.gz -z T1 -o /fullpath/output -t -B 1 -P 2 -v
 	
 
 Purpose:
@@ -118,3 +132,7 @@ Installation instructions:
     - Clone this repository, add the installation directory to your path in Bash shell.
     - Ensure that all dependencies are met, FastSurfer is only required if you will use it for parcellation (i.e. with -P 2 or -P 3)
 
+
+### Additional scripts provided:
+1) KUL_synth_pats_4VBG.sh, which can be used to generate a cohort of synthetic patients and their ground truth.
+2) KUL_VBG_cook_template.sh, which can be used for cooking a template from two brain images with pathologies on opposing sides.

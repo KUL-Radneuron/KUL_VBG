@@ -7,14 +7,16 @@ Many parcellation software packages fail in the presence of large brain lesions.
 
 The approach taken here is to:
 
-- extract the gross brain lesion using a mask
-- replace the brain lesion with normal looking tissue (hence virtual brain grafting)
-- run parellation software like freesufer or fastsurfer (which only work well on non-lesioned brains)
-- reinsert the lesion mask into the parcellation 
+- Extract the gross brain lesion using a mask
+- Replace the brain lesion with normal looking tissue (hence virtual brain grafting)
+- Run parellation software like freesufer &/or fastsurfer (which only work well on non-lesioned brains)
+- Reinsert the lesion mask into the parcellation 
 
 ## Introduction 
 
 For reference we point to the paper published in Neuroimage, 2021 available here: https://doi.org/10.1016/j.neuroimage.2021.117731
+
+**** We recommend you to use the "master" branch of this repository, which is the updated and more stable version of KUL_VBG. For the version corresponding to the published article, please see the branch "Orig_doi.org/10.1016/j.neuroimage.2021.117731" ****
 
 ## Posing the problem and solution
 
@@ -22,7 +24,7 @@ An image to explain the problem: Freesurfer will not parcellate these brains
 
 ![VBG fig1](figs4readme/fig1.jpg)
 
-The graphical solution of the VBG workflow is show here:
+The graphical solution of the VBG workflow is shown here:
 
 ![VBG fig1](figs4readme/fig2.jpg)
 
@@ -45,6 +47,7 @@ f) Freesurfer v6.0
 
 e) FastSurfer
 
+** Check (https://github.com/treanus/KUL_Linux_Installation.git) for help with setting up your environment with different neuroimaging packages.
 
 ## Examples
 
@@ -95,8 +98,8 @@ Optional arguments:
     -B:  specify brain extraction method (1 = HD-BET, 2 = ANTs-BET), if not set ANTs-BET will be used by default
     -P:  Run parcellation (1 = FreeSurfer recon-all, 2 = FastSurfer)
     -p:  In case of pediatric patients - use pediatric template (NKI_under_10 in MNI)
-    -m:  full path to intermediate output dir
-    -o:  full path to output dir (if not set reverts to default output ./lesion_wf_output)
+    -m:  full path to intermediate output dir (if not set reverts to default output ./VBG_out/proc_VBG)
+    -o:  full path to output dir (if not set reverts to default output ./VBG_out/output_VBG)
     -n:  number of cpu for parallelisation (default is 6)
     -v:  show output from mrtrix commands
     -h:  prints help menu
@@ -104,7 +107,7 @@ Optional arguments:
 Notes: 
 
     - Input flags -b and -a are mutually exclusive, if your data is in BIDS use -b, and if not then specify exact path and name for the patient's T1.nii.gz 
-    - In case of trouble with HD-BET see lines (1140 - 1170)
+    - In case of trouble with HD-BET see lines (1177 - 1221)
     - You need a high resolution T1 WI and a lesion mask in the same space for VBG to run
     - If you end up with an empty image, it is possible you have a mismatch between the T1 and lesion mask
     - The lesion mask can be generated with any lesion segmentation tool.

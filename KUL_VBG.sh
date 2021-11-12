@@ -377,6 +377,8 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 		echo " One session " $ses " specified in BIDS dir, good."
 
 		### STEFAN NEED TO DO: check what is the best input T1w: with or whitout Gd?
+        # AR: This can be as added as an optional flag with the bids flag (-b )
+        # Which is best input to use might require some testing
         ### to select use something like:
         ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		
@@ -403,6 +405,9 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 
     
     ### STEFAN NEED TO DO: prefer to set KUL_compute/sub-participant/VBG as default output?
+    # AR: this can easily be changed using -o
+    # no objections to changing default behavior for -o
+    # We just need to keep FS output stable, as this will be needed for MSBP and other BIDS_apps
     if [[ "$o_flag" -eq 0 ]]; then
 
         output_d="${cwd}/BIDS/derivatives/output_VBG/${subj}${ses_long}"
@@ -1098,6 +1103,7 @@ function task_exec {
     wait ${pid}
 
     ### STEFAN NEED TO DO: is the sleep needed, or can it be shorter?
+
     sleep 5
 
     if [ $? -eq 0 ]; then

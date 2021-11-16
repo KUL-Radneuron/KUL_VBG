@@ -1178,7 +1178,12 @@ function KUL_antsBETp {
     ### This can be done with, outputs kb
     ### nvidia-smi --query-gpu=memory.free --format=csv
     ### and if more the 4096 continue with GPU
-    nvd_cu=$(nvcc --version)
+    if ! command -v nvidia-smi &> /dev/null; then
+        nvram=0
+    else
+        nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+    fi
+    #nvd_cu=$(nvcc --version)
 
     if [[ ${BET_m} -eq 1 ]]; then
 
@@ -1186,7 +1191,8 @@ function KUL_antsBETp {
 
         echo "Assuming a local installation of hd-bet, if yours is installed differently, please change lines 1140 - 1170 accordingly" | tee -a ${prep_log}
 
-        if [[ -z ${nvd_cu} ]]; then
+        #if [[ -z ${nvd_cu} ]]; then
+        if [ $nvram -lt 3000 ];then
 
             HDB_type=" -tta 0 -mode accurate -s 1 -device cpu "
             echo " Running HD-BET without CUDA " | tee -a ${prep_log}
@@ -2805,12 +2811,19 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             task_exec
 
             FaSu_loc=$(which run_fastsurfer.sh)
-            nvd_cu=$(nvcc --version)
+            if ! command -v nvidia-smi &> /dev/null; then
+                nvram=0
+            else
+                nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+            fi
+            #nvd_cu=$(nvcc --version)
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
-            nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+            #nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
             if [[ ! -z ${nvram} ]]; then
-                if [[ ${nvram} -lt 6000 ]]; then
+                if [[ ${nvram} -lt 4000 ]]; then
+                    batch_fasu="2"
+                elif [[ ${nvram} -gt 4000 ]] && [[ ${nvram} -lt 6000 ]]; then
                     batch_fasu="4"
                 elif [[ ${nvram} -gt 6500 ]] && [[ ${nvram} -lt 7000 ]]; then
                     batch_fasu="6"
@@ -2825,8 +2838,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
             if [[ ! -z ${FaSu_loc} ]]; then
 
-                if [[ -z ${nvd_cu} ]]; then
-
+                #if [[ -z ${nvd_cu} ]]; then
+                if [ $nvram -lt 4000 ]; then
                     FaSu_cpu=" --no_cuda "
                     echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
 
@@ -2854,7 +2867,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
                 T1_4_FaSu=$(basename ${T1_4_parc})
 
-                if [[ ! -z ${nvd_cu} ]]; then
+                #if [[ ! -z ${nvd_cu} ]]; then
+                if [ $nvram -lt 4000 ]; then
 
                     FaSu_v="gpu"
 
@@ -2874,6 +2888,12 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
             fi
 
+            #### --- STEFAN
+            #### --- TESTING
+            echo " STEFAN - TESTING - We exit at line 2893"
+            exit
+
+            
             # time to copy the surfaces and labels from FaSu to FS dir
             # here we run FastSurfer first and 
 
@@ -2970,13 +2990,18 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 # search for FaSu native install first
                 FaSu_loc=$(which run_fastsurfer.sh)
-                nvd_cu=$(nvcc --version)
+                if ! command -v nvidia-smi &> /dev/null; then
+                    nvram=0
+                else
+                    nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+                fi
+                #nvd_cu=$(nvcc --version)
                 user_id_str=$(id -u $(whoami))
 
                 if [[ ! -z ${FaSu_loc} ]]; then
 
-                    if [[ -z ${nvd_cu} ]]; then
-
+                    #if [[ -z ${nvd_cu} ]]; then
+                    if [ $nvram -lt 4000 ]; then
                         FaSu_cpu=" --no_cuda "
 
                     else
@@ -3010,8 +3035,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                     echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
                     T1_4_FaSu=$(basename ${T1_4_parc})
 
-                    if [[ ! -z ${nvd_cu} ]]; then
-
+                    #if [[ ! -z ${nvd_cu} ]]; then
+                    if [ $nvram -lt 4000 ]; then
                         FaSu_v="gpu"
 
                     else

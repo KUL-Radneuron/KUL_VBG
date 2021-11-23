@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.60_28102021_beta"
+v="0.61_23112021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -1204,7 +1204,7 @@ function KUL_antsBETp {
         task_exec
 
         # if hd-bet in GPU mode fails, run CPU mode
-        if [[ ! -f "${T1_brain_clean}" ]]; then
+        if [[ ! -f "${output}_i.nii.gz" ]]; then
 
             task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i -tta 0 -mode accurate -s 1 -device cpu"
 
@@ -2038,8 +2038,10 @@ if [[ "${E_flag}" -eq 0 ]]; then
             
             # task_exec
 
-            task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -x ${MNI_brain_mask},${str_pp}_brain_mask_FS.nii.gz \
-            -o ${str_pp}_T1_reori_aff2MNI_ -t a"
+            # task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -x ${MNI_brain_mask},${str_pp}_brain_mask_FS.nii.gz \
+            # -o ${str_pp}_T1_reori_aff2MNI_ -t a"
+
+            task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -o ${str_pp}_T1_reori_aff2MNI_ -t a"
     
             task_exec
 

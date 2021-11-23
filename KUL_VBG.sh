@@ -10,7 +10,7 @@
 #####################################
 
 
-v="0.60_28102021_beta"
+v="0.61_23112021_beta"
 
 # This script is meant to allow a decent recon-all/antsMALF output in the presence of a large brain lesion 
 # The main idea is to replace the lesion with a hole and fill the hole with information from the a synthetic image
@@ -1193,8 +1193,9 @@ function KUL_antsBETp {
 
         echo "Assuming a local installation of hd-bet, if yours is installed differently, please change lines 1140 - 1170 accordingly" | tee -a ${prep_log}
 
-        #if [[ -z ${nvd_cu} ]]; then
+
         if [ $nvram -lt 5000 ];then
+
 
             HDB_type=" -tta 0 -mode accurate -s 1 -device cpu "
             echo " Running HD-BET without CUDA " | tee -a ${prep_log}
@@ -1212,7 +1213,7 @@ function KUL_antsBETp {
         task_exec
 
         # if hd-bet in GPU mode fails, run CPU mode
-        if [[ ! -f "${T1_brain_clean}" ]]; then
+        if [[ ! -f "${output}_i.nii.gz" ]]; then
 
             task_in="hd-bet -i ${output}_aff_2_temp_Warped.nii.gz -o ${output}_i -tta 0 -mode accurate -s 1 -device cpu"
 
@@ -2046,8 +2047,10 @@ if [[ "${E_flag}" -eq 0 ]]; then
             
             # task_exec
 
-            task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -x ${MNI_brain_mask},${str_pp}_brain_mask_FS.nii.gz \
-            -o ${str_pp}_T1_reori_aff2MNI_ -t a"
+            # task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -x ${MNI_brain_mask},${str_pp}_brain_mask_FS.nii.gz \
+            # -o ${str_pp}_T1_reori_aff2MNI_ -t a"
+
+            task_in="antsRegistrationSyN.sh -d 3 -f ${MNI_T1_brain} -m ${str_pp}_brain_mask_init.nii.gz -o ${str_pp}_T1_reori_aff2MNI_ -t a"
     
             task_exec
 
@@ -2813,19 +2816,12 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             task_exec
 
             FaSu_loc=$(which run_fastsurfer.sh)
-            if ! command -v nvidia-smi &> /dev/null; then
-                nvram=0
-            else
-                nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
-            fi
             #nvd_cu=$(nvcc --version)
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
-            #nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+            nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
             if [[ ! -z ${nvram} ]]; then
-                if [[ ${nvram} -lt 4000 ]]; then
-                    batch_fasu="2"
-                elif [[ ${nvram} -gt 4000 ]] && [[ ${nvram} -lt 6000 ]]; then
+                if [[ ${nvram} -lt 6000 ]]; then
                     batch_fasu="4"
                 elif [[ ${nvram} -gt 6500 ]] && [[ ${nvram} -lt 7000 ]]; then
                     batch_fasu="6"
@@ -2840,8 +2836,9 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
             if [[ ! -z ${FaSu_loc} ]]; then
 
-                #if [[ -z ${nvd_cu} ]]; then
+
                 if [ $nvram -lt 5500 ]; then
+
                     FaSu_cpu=" --no_cuda "
                     echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
 
@@ -2869,7 +2866,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
                 T1_4_FaSu=$(basename ${T1_4_parc})
 
-                #if [[ ! -z ${nvd_cu} ]]; then
+
                 if [ $nvram -lt 5500 ]; then
 
                     FaSu_v="gpu"
@@ -2889,7 +2886,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 task_exec
 
             fi
-            
+
             # time to copy the surfaces and labels from FaSu to FS dir
             # here we run FastSurfer first and 
 
@@ -2996,8 +2993,9 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 if [[ ! -z ${FaSu_loc} ]]; then
 
-                    #if [[ -z ${nvd_cu} ]]; then
+
                     if [ $nvram -lt 5500 ]; then
+
                         FaSu_cpu=" --no_cuda "
 
                     else
@@ -3031,8 +3029,9 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                     echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
                     T1_4_FaSu=$(basename ${T1_4_parc})
 
-                    #if [[ ! -z ${nvd_cu} ]]; then
+
                     if [ $nvram -lt 5500 ]; then
+
                         FaSu_v="gpu"
 
                     else

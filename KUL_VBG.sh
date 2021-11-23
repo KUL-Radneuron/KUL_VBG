@@ -328,7 +328,8 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
         ### to select use something like:
         ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 
-		search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+		# search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        search_T1=($(find $search_sessions -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep FLAIR.nii.gz));
 			
@@ -382,7 +383,8 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
         ### to select use something like:
         ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		
-        search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        # search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        search_T1=($(find $search_sessions  -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep flair.nii.gz));
 		
@@ -1192,7 +1194,7 @@ function KUL_antsBETp {
         echo "Assuming a local installation of hd-bet, if yours is installed differently, please change lines 1140 - 1170 accordingly" | tee -a ${prep_log}
 
         #if [[ -z ${nvd_cu} ]]; then
-        if [ $nvram -lt 3000 ];then
+        if [ $nvram -lt 5000 ];then
 
             HDB_type=" -tta 0 -mode accurate -s 1 -device cpu "
             echo " Running HD-BET without CUDA " | tee -a ${prep_log}
@@ -2839,7 +2841,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             if [[ ! -z ${FaSu_loc} ]]; then
 
                 #if [[ -z ${nvd_cu} ]]; then
-                if [ $nvram -lt 4000 ]; then
+                if [ $nvram -lt 5500 ]; then
                     FaSu_cpu=" --no_cuda "
                     echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
 
@@ -2868,7 +2870,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 T1_4_FaSu=$(basename ${T1_4_parc})
 
                 #if [[ ! -z ${nvd_cu} ]]; then
-                if [ $nvram -lt 4000 ]; then
+                if [ $nvram -lt 5500 ]; then
 
                     FaSu_v="gpu"
 
@@ -2887,12 +2889,6 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 task_exec
 
             fi
-
-            #### --- STEFAN
-            #### --- TESTING
-            echo " STEFAN - TESTING - We exit at line 2893"
-            exit
-
             
             # time to copy the surfaces and labels from FaSu to FS dir
             # here we run FastSurfer first and 
@@ -3001,7 +2997,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 if [[ ! -z ${FaSu_loc} ]]; then
 
                     #if [[ -z ${nvd_cu} ]]; then
-                    if [ $nvram -lt 4000 ]; then
+                    if [ $nvram -lt 5500 ]; then
                         FaSu_cpu=" --no_cuda "
 
                     else
@@ -3036,7 +3032,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                     T1_4_FaSu=$(basename ${T1_4_parc})
 
                     #if [[ ! -z ${nvd_cu} ]]; then
-                    if [ $nvram -lt 4000 ]; then
+                    if [ $nvram -lt 5500 ]; then
                         FaSu_v="gpu"
 
                     else

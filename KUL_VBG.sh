@@ -328,7 +328,8 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
         ### to select use something like:
         ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 
-		search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+		# search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        search_T1=($(find $search_sessions -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep FLAIR.nii.gz));
 			
@@ -382,7 +383,8 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
         ### to select use something like:
         ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		
-        search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        # search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
+        search_T1=($(find $search_sessions  -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep flair.nii.gz));
 		
@@ -1178,7 +1180,12 @@ function KUL_antsBETp {
     ### This can be done with, outputs kb
     ### nvidia-smi --query-gpu=memory.free --format=csv
     ### and if more the 4096 continue with GPU
-    nvd_cu=$(nvcc --version)
+    if ! command -v nvidia-smi &> /dev/null; then
+        nvram=0
+    else
+        nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+    fi
+    #nvd_cu=$(nvcc --version)
 
     if [[ ${BET_m} -eq 1 ]]; then
 
@@ -1186,7 +1193,9 @@ function KUL_antsBETp {
 
         echo "Assuming a local installation of hd-bet, if yours is installed differently, please change lines 1140 - 1170 accordingly" | tee -a ${prep_log}
 
-        if [[ -z ${nvd_cu} ]]; then
+
+        if [ $nvram -lt 5000 ];then
+
 
             HDB_type=" -tta 0 -mode accurate -s 1 -device cpu "
             echo " Running HD-BET without CUDA " | tee -a ${prep_log}
@@ -2807,7 +2816,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             task_exec
 
             FaSu_loc=$(which run_fastsurfer.sh)
-            nvd_cu=$(nvcc --version)
+            #nvd_cu=$(nvcc --version)
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
             nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
@@ -2827,7 +2836,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
             if [[ ! -z ${FaSu_loc} ]]; then
 
-                if [[ -z ${nvd_cu} ]]; then
+
+                if [ $nvram -lt 5500 ]; then
 
                     FaSu_cpu=" --no_cuda "
                     echo " Running FastSurfer without CUDA " | tee -a ${prep_log}
@@ -2856,7 +2866,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
                 T1_4_FaSu=$(basename ${T1_4_parc})
 
-                if [[ ! -z ${nvd_cu} ]]; then
+
+                if [ $nvram -lt 5500 ]; then
 
                     FaSu_v="gpu"
 
@@ -2972,12 +2983,18 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
                 # search for FaSu native install first
                 FaSu_loc=$(which run_fastsurfer.sh)
-                nvd_cu=$(nvcc --version)
+                if ! command -v nvidia-smi &> /dev/null; then
+                    nvram=0
+                else
+                    nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+                fi
+                #nvd_cu=$(nvcc --version)
                 user_id_str=$(id -u $(whoami))
 
                 if [[ ! -z ${FaSu_loc} ]]; then
 
-                    if [[ -z ${nvd_cu} ]]; then
+
+                    if [ $nvram -lt 5500 ]; then
 
                         FaSu_cpu=" --no_cuda "
 
@@ -3012,7 +3029,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                     echo "Local FastSurfer not found, switching to Docker version" | tee -a ${prep_log}
                     T1_4_FaSu=$(basename ${T1_4_parc})
 
-                    if [[ ! -z ${nvd_cu} ]]; then
+
+                    if [ $nvram -lt 5500 ]; then
 
                         FaSu_v="gpu"
 

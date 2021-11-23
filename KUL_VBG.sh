@@ -324,11 +324,6 @@ if [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 0 ]]; then
 		# now we need to search for the images
 		# then also find which modalities are available and set wf accordingly
 
-        ### STEFAN NEED TO DO: check what is the best input T1w: with or whitout Gd?
-        ### to select use something like:
-        ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-
-		# search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
         search_T1=($(find $search_sessions -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep FLAIR.nii.gz));
@@ -377,13 +372,6 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 			
 		echo " One session " $ses " specified in BIDS dir, good."
 
-		### STEFAN NEED TO DO: check what is the best input T1w: with or whitout Gd?
-        # AR: This can be as added as an optional flag with the bids flag (-b )
-        # Which is best input to use might require some testing
-        ### to select use something like:
-        ### find_T1w=($(find ${cwd}/BIDS/sub-${participant}/anat/ -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
-		
-        # search_T1=($(find $search_sessions -type f | grep T1w.nii.gz));
         search_T1=($(find $search_sessions  -name "*_T1w.nii.gz" ! -name "*gadolinium*"))
 		# search_T2=($(find $search_sessions -type f | grep T2w.nii.gz));
 		# search_FLAIR=($(find $search_sessions -type f | grep flair.nii.gz));
@@ -1175,17 +1163,13 @@ function KUL_antsBETp {
 
     # task_exec
 
-    ### STEFAN NEED TO DO: nvcc is not always installed even if you have a working nvidia GPU
-    ### it would be better to check the available free GPU mem
-    ### This can be done with, outputs kb
-    ### nvidia-smi --query-gpu=memory.free --format=csv
-    ### and if more the 4096 continue with GPU
+
+    # check the available free GPU mem
     if ! command -v nvidia-smi &> /dev/null; then
         nvram=0
     else
         nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
     fi
-    #nvd_cu=$(nvcc --version)
 
     if [[ ${BET_m} -eq 1 ]]; then
 
@@ -2816,7 +2800,6 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             task_exec
 
             FaSu_loc=$(which run_fastsurfer.sh)
-            #nvd_cu=$(nvcc --version)
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
             nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
@@ -2988,7 +2971,6 @@ if [[ "${P_flag}" -eq 1 ]] ; then
                 else
                     nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
                 fi
-                #nvd_cu=$(nvcc --version)
                 user_id_str=$(id -u $(whoami))
 
                 if [[ ! -z ${FaSu_loc} ]]; then

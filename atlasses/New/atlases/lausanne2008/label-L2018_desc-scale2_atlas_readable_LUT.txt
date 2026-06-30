@@ -1,0 +1,179 @@
+#$Id: label-L2018_desc-scale2_atlas_readable_LUT.txt — human-readable lobar-colour LUT
+
+#No. Label Name                                      R   G   B  A
+
+
+#No. Label Name:                                               R   G   B A 
+
+# Right Hemisphere. Cortical Structures 
+1     R.LatOrbFront_1                                 52  85 202  0
+2     R.LatOrbFront_2                                 90 153 232  0
+3     R.ParsOrbit_1                                   42  64 194  0
+4     R.FrontPole_1                                   23  22 174  0
+5     R.MedOrbFront_1                                 45  70 196  0
+6     R.MedOrbFront_2                                 81 139 225  0
+7     R.ParsTri_1                                     23  23 175  0
+8     R.ParsOper_1                                    77 132 222  0
+9     R.RMidFront_1                                   76 129 221  0
+10    R.RMidFront_2                                   23  22 174  0
+11    R.SupFront_1                                    64 108 212  0
+12    R.SupFront_2                                   105 177 242  0
+13    R.SupFront_3                                    42  66 194  0
+14    R.SupFront_4                                    79 134 223  0
+15    R.CMidFront_1                                  100 169 238  0
+16    R.Precentral_1                                 191  68  42  0
+17    R.Precentral_2                                 216  77  84  0
+18    R.Precentral_3                                 175  72  24  0
+19    R.Paracentral_1                                185  70  35  0
+20    R.rACC_1                                       170  36 144  0
+21    R.cACC_1                                       170  36 144  0
+22    R.PostCing_1                                   182  81 212  0
+23    R.IsthmusCing_1                                184  72 204  0
+24    R.Postcentral_1                                230  99 122  0
+25    R.Postcentral_2                                189  69  40  0
+26    R.Supramarg_1                                   95 216  93  0
+27    R.Supramarg_2                                   45 185  95  0
+28    R.SupPar_1                                      39 180  97  0
+29    R.SupPar_2                                      66 199  91  0
+30    R.SupPar_3                                     104 219  98  0
+31    R.InfPar_1                                      92 215  92  0
+32    R.InfPar_2                                      44 184  96  0
+33    R.InfPar_3                                      72 203  90  0
+34    R.Precuneus_1                                   56 193  92  0
+35    R.Precuneus_2                                   86 212  91  0
+36    R.Cuneus_1                                     174 202  58  0
+37    R.Pericalc_1                                   185 207  64  0
+38    R.LatOccip_1                                   185 207  64  0
+39    R.LatOccip_2                                   232 222 101  0
+40    R.LatOccip_3                                   148 191  45  0
+41    R.Lingual_1                                    179 204  61  0
+42    R.Lingual_2                                    229 222  97  0
+43    R.Fusiform_1                                   168 134  20  0
+44    R.Fusiform_2                                   194 126  48  0
+45    R.ParaHipp_1                                   213 124  73  0
+46    R.Entorh_1                                     218 124  81  0
+47    R.TempPole_1                                   203 124  59  0
+48    R.InfTemp_1                                    209 124  67  0
+49    R.InfTemp_2                                    234 127 105  0
+50    R.MidTemp_1                                    175 131  27  0
+51    R.MidTemp_2                                    200 125  56  0
+52    R.BankSTS_1                                    168 134  20  0
+53    R.SupTemp_1                                    229 125  97  0
+54    R.SupTemp_2                                    188 127  41  0
+55    R.TransTemp_1                                  231 126 100  0
+56    R.Insula_1                                      47 165 183  0
+57    R.Insula_2                                      72 202 189  0
+
+# Right Hemisphere. Subcortical Structures (Thalamic Nuclei) 
+58    Right-Pulvinar                                 255   0   0  0
+59    Right-Anterior                                   0 255   0  0
+60    Right-Medio_Dorsal                             255 255   0  0
+61    Right-Ventral_Latero_Dorsal                    255 123   0  0
+62    Right-Central_Lateral-Lateral_Posterior-Medial_Pulvinar   0 255 255  0
+63    Right-Ventral_Anterior                         255   0 255  0
+64    Right-Ventral_Latero_Ventral                     0   0 255  0
+
+# Right Hemisphere. Subcortical Structures 
+65    Right-Thalamus_Proper                            0 118  14  0
+66    Right-Caudate                                  122 186 220  0
+67    Right-Putamen                                  236  13 176  0
+68    Right-Pallidum                                  12  48 255  0
+69    Right-Accumbens_area                           255 165   0  0
+70    Right-Hippocampus                              103 255 255  0
+71    Right-Amygdala                                 220 216  20  0
+
+# Right Hemisphere. Ventral Diencephalon 
+72    Right-VentralDC                                165  42  42  0
+
+# Right Hemisphere. Hypothalamus 
+73    Right-Hypothalamus                             204 182 142  0
+
+# Left Hemisphere. Cortical Structures 
+74    L.LatOrbFront_1                                 47  76 182  0
+75    L.LatOrbFront_2                                 82 140 211  0
+76    L.ParsOrbit_1                                   37  58 173  0
+77    L.FrontPole_1                                   20  19 153  0
+78    L.MedOrbFront_1                                 40  63 176  0
+79    L.MedOrbFront_2                                 74 126 205  0
+80    L.ParsTri_1                                     20  20 154  0
+81    L.ParsOper_1                                    70 120 202  0
+82    L.RMidFront_1                                   69 117 201  0
+83    L.RMidFront_2                                   20  19 153  0
+84    L.SupFront_1                                    58  97 192  0
+85    L.SupFront_2                                    96 162 221  0
+86    L.SupFront_3                                    38  59 174  0
+87    L.SupFront_4                                    72 122 203  0
+88    L.CMidFront_1                                   92 155 218  0
+89    L.Precentral_1                                 171  61  38  0
+90    L.Precentral_2                                 196  69  76  0
+91    L.Precentral_3                                 155  64  21  0
+92    L.Paracentral_1                                164  62  31  0
+93    L.rACC_1                                       150  31 127  0
+94    L.cACC_1                                       150  31 127  0
+95    L.PostCing_1                                   165  73 191  0
+96    L.IsthmusCing_1                                166  65 184  0
+97    L.Postcentral_1                                210  90 111  0
+98    L.Postcentral_2                                169  61  36  0
+99    L.Supramarg_1                                   86 196  84  0
+100   L.Supramarg_2                                   40 164  85  0
+101   L.SupPar_1                                      35 160  86  0
+102   L.SupPar_2                                      60 179  82  0
+103   L.SupPar_3                                      94 199  89  0
+104   L.InfPar_1                                      83 195  83  0
+105   L.InfPar_2                                      39 163  85  0
+106   L.InfPar_3                                      65 183  81  0
+107   L.Precuneus_1                                   50 172  83  0
+108   L.Precuneus_2                                   78 192  82  0
+109   L.Cuneus_1                                     157 182  52  0
+110   L.Pericalc_1                                   167 186  58  0
+111   L.LatOccip_1                                   167 186  58  0
+112   L.LatOccip_2                                   212 202  92  0
+113   L.LatOccip_3                                   132 171  40  0
+114   L.Lingual_1                                    161 184  55  0
+115   L.Lingual_2                                    209 203  89  0
+116   L.Fusiform_1                                   148 118  18  0
+117   L.Fusiform_2                                   173 113  43  0
+118   L.ParaHipp_1                                   193 112  66  0
+119   L.Entorh_1                                     198 112  73  0
+120   L.TempPole_1                                   183 112  53  0
+121   L.InfTemp_1                                    188 112  60  0
+122   L.InfTemp_2                                    214 116  95  0
+123   L.MidTemp_1                                    155 116  24  0
+124   L.MidTemp_2                                    180 112  50  0
+125   L.BankSTS_1                                    148 118  18  0
+126   L.SupTemp_1                                    209 114  88  0
+127   L.SupTemp_2                                    168 114  37  0
+128   L.TransTemp_1                                  211 115  92  0
+129   L.Insula_1                                      41 146 162  0
+130   L.Insula_2                                      65 182 170  0
+
+# Left Hemisphere. Subcortical Structures (Thalamic Nuclei) 
+131   Left-Pulvinar                                  255   0   0  0
+132   Left-Anterior                                    0 255   0  0
+133   Left-Medio_Dorsal                              255 255   0  0
+134   Left-Ventral_Latero_Dorsal                     255 123   0  0
+135   Left-Central_Lateral-Lateral_Posterior-Medial_Pulvinar   0 255 255  0
+136   Left-Ventral_Anterior                          255   0 255  0
+137   Left-Ventral_Latero_Ventral                      0   0 255  0
+
+# Left Hemisphere. Subcortical Structures 
+138   Left-Thalamus_Proper                             0 118  14  0
+139   Left-Caudate                                   122 186 220  0
+140   Left-Putamen                                   236  13 176  0
+141   Left-Pallidum                                   12  48 255  0
+142   Left-Accumbens_area                            255 165   0  0
+143   Left-Hippocampus                               103 255 255  0
+144   Left-Amygdala                                  220 216  20  0
+
+# Left Hemisphere. Ventral Diencephalon 
+145   Left-VentralDC                                 165  42  42  0
+
+# Left Hemisphere. Hypothalamus 
+146   Left-Hypothalamus                              204 182 142  0
+
+# Brain Stem Structures 
+147   Brain_Stem-Midbrain                            242 104  76  0
+148   Brain_Stem-Pons                                206 195  58  0
+149   Brain_Stem-Medulla                             119 159 176  0
+150   Brain_Stem-SCP                                 142 182   0  0
+

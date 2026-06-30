@@ -1,0 +1,14 @@
+# Hypothalamic subunits LUT
+# For use with mri_segment_hypothalamic_subunits (FreeSurfer 7.2+)
+# Label IDs match FreeSurferColorLUT.txt (801-810)
+#
+801	L_hypothalamus_anterior_inferior
+802	L_hypothalamus_anterior_superior
+803	L_hypothalamus_posterior
+804	L_hypothalamus_tubular_inferior
+805	L_hypothalamus_tubular_superior
+806	R_hypothalamus_anterior_inferior
+807	R_hypothalamus_anterior_superior
+808	R_hypothalamus_posterior
+809	R_hypothalamus_tubular_inferior
+810	R_hypothalamus_tubular_superior

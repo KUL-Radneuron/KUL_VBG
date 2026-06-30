@@ -1,0 +1,281 @@
+#$Id: label-L2018_desc-scale3_atlas_readable_LUT.txt — human-readable lobar-colour LUT
+
+#No. Label Name                                      R   G   B  A
+
+
+#No. Label Name:                                               R   G   B A 
+
+# Right Hemisphere. Cortical Structures 
+1     R.LatOrbFront_1                                 52  85 202  0
+2     R.LatOrbFront_2                                 90 153 232  0
+3     R.LatOrbFront_3                                 32  44 184  0
+4     R.LatOrbFront_4                                 66 111 214  0
+5     R.ParsOrbit_1                                   42  64 194  0
+6     R.FrontPole_1                                   23  22 174  0
+7     R.MedOrbFront_1                                 45  70 196  0
+8     R.MedOrbFront_2                                 81 139 225  0
+9     R.MedOrbFront_3                                 26  30 178  0
+10    R.ParsTri_1                                     23  23 175  0
+11    R.ParsTri_2                                     54  88 204  0
+12    R.ParsOper_1                                    77 132 222  0
+13    R.ParsOper_2                                    23  24 175  0
+14    R.RMidFront_1                                   76 129 221  0
+15    R.RMidFront_2                                   23  22 174  0
+16    R.RMidFront_3                                   53  86 203  0
+17    R.RMidFront_4                                   91 155 232  0
+18    R.RMidFront_5                                   33  45 185  0
+19    R.RMidFront_6                                   66 112 214  0
+20    R.SupFront_1                                    64 108 212  0
+21    R.SupFront_2                                   105 177 242  0
+22    R.SupFront_3                                    42  66 194  0
+23    R.SupFront_4                                    79 134 223  0
+24    R.SupFront_5                                    24  26 176  0
+25    R.SupFront_6                                    55  92 205  0
+26    R.SupFront_7                                    95 160 235  0
+27    R.SupFront_8                                    35  50 187  0
+28    R.CMidFront_1                                  100 169 238  0
+29    R.CMidFront_2                                   39  59 191  0
+30    R.CMidFront_3                                   75 127 220  0
+31    R.Precentral_1                                 191  68  42  0
+32    R.Precentral_2                                 216  77  84  0
+33    R.Precentral_3                                 175  72  24  0
+34    R.Precentral_4                                 201  68  55  0
+35    R.Precentral_5                                 226  92 110  0
+36    R.Precentral_6                                 185  70  35  0
+37    R.Paracentral_1                                185  70  35  0
+38    R.Paracentral_2                                210  68  67  0
+39    R.Paracentral_3                                169  75  18  0
+40    R.rACC_1                                       170  36 144  0
+41    R.cACC_1                                       170  36 144  0
+42    R.PostCing_1                                   182  81 212  0
+43    R.PostCing_2                                   175  40 156  0
+44    R.IsthmusCing_1                                184  72 204  0
+45    R.Postcentral_1                                230  99 122  0
+46    R.Postcentral_2                                189  69  40  0
+47    R.Postcentral_3                                215  74  80  0
+48    R.Postcentral_4                                174  73  22  0
+49    R.Postcentral_5                                199  68  52  0
+50    R.Supramarg_1                                   95 216  93  0
+51    R.Supramarg_2                                   45 185  95  0
+52    R.Supramarg_3                                   74 204  90  0
+53    R.Supramarg_4                                   30 173 101  0
+54    R.SupPar_1                                      39 180  97  0
+55    R.SupPar_2                                      66 199  91  0
+56    R.SupPar_3                                     104 219  98  0
+57    R.SupPar_4                                      49 187  94  0
+58    R.SupPar_5                                      78 207  90  0
+59    R.SupPar_6                                      34 175 100  0
+60    R.SupPar_7                                      60 195  92  0
+61    R.InfPar_1                                      92 215  92  0
+62    R.InfPar_2                                      44 184  96  0
+63    R.InfPar_3                                      72 203  90  0
+64    R.InfPar_4                                      29 172 102  0
+65    R.InfPar_5                                      54 191  93  0
+66    R.InfPar_6                                      84 211  91  0
+67    R.Precuneus_1                                   56 193  92  0
+68    R.Precuneus_2                                   86 212  91  0
+69    R.Precuneus_3                                   40 181  97  0
+70    R.Precuneus_4                                   67 200  91  0
+71    R.Precuneus_5                                   26 169 104  0
+72    R.Cuneus_1                                     174 202  58  0
+73    R.Cuneus_2                                     227 223  94  0
+74    R.Pericalc_1                                   185 207  64  0
+75    R.Pericalc_2                                   232 222 101  0
+76    R.LatOccip_1                                   185 207  64  0
+77    R.LatOccip_2                                   232 222 101  0
+78    R.LatOccip_3                                   148 191  45  0
+79    R.LatOccip_4                                   207 216  78  0
+80    R.LatOccip_5                                   111 175  27  0
+81    R.Lingual_1                                    179 204  61  0
+82    R.Lingual_2                                    229 222  97  0
+83    R.Lingual_3                                    142 189  42  0
+84    R.Fusiform_1                                   168 134  20  0
+85    R.Fusiform_2                                   194 126  48  0
+86    R.Fusiform_3                                   219 124  82  0
+87    R.Fusiform_4                                   178 130  30  0
+88    R.ParaHipp_1                                   213 124  73  0
+89    R.Entorh_1                                     218 124  81  0
+90    R.TempPole_1                                   203 124  59  0
+91    R.InfTemp_1                                    209 124  67  0
+92    R.InfTemp_2                                    234 127 105  0
+93    R.InfTemp_3                                    193 126  47  0
+94    R.InfTemp_4                                    218 124  81  0
+95    R.MidTemp_1                                    175 131  27  0
+96    R.MidTemp_2                                    200 125  56  0
+97    R.MidTemp_3                                    226 125  91  0
+98    R.MidTemp_4                                    185 128  37  0
+99    R.BankSTS_1                                    168 134  20  0
+100   R.SupTemp_1                                    229 125  97  0
+101   R.SupTemp_2                                    188 127  41  0
+102   R.SupTemp_3                                    213 124  74  0
+103   R.SupTemp_4                                    172 132  24  0
+104   R.SupTemp_5                                    198 125  53  0
+105   R.TransTemp_1                                  231 126 100  0
+106   R.Insula_1                                      47 165 183  0
+107   R.Insula_2                                      72 202 189  0
+108   R.Insula_3                                      33 133 171  0
+
+# Right Hemisphere. Subcortical Structures (Thalamic Nuclei) 
+109   Right-Pulvinar                                 255   0   0  0
+110   Right-Anterior                                   0 255   0  0
+111   Right-Medio_Dorsal                             255 255   0  0
+112   Right-Ventral_Latero_Dorsal                    255 123   0  0
+113   Right-Central_Lateral-Lateral_Posterior-Medial_Pulvinar   0 255 255  0
+114   Right-Ventral_Anterior                         255   0 255  0
+115   Right-Ventral_Latero_Ventral                     0   0 255  0
+
+# Right Hemisphere. Subcortical Structures 
+116   Right-Thalamus_Proper                            0 118  14  0
+117   Right-Caudate                                  122 186 220  0
+118   Right-Putamen                                  236  13 176  0
+119   Right-Pallidum                                  12  48 255  0
+120   Right-Accumbens_area                           255 165   0  0
+121   Right-Hippocampus                              103 255 255  0
+122   Right-Amygdala                                 220 216  20  0
+
+# Right Hemisphere. Ventral Diencephalon 
+123   Right-VentralDC                                165  42  42  0
+
+# Right Hemisphere. Hypothalamus 
+124   Right-Hypothalamus                             204 182 142  0
+
+# Left Hemisphere. Cortical Structures 
+125   L.LatOrbFront_1                                 47  76 182  0
+126   L.LatOrbFront_2                                 82 140 211  0
+127   L.LatOrbFront_3                                 28  39 164  0
+128   L.LatOrbFront_4                                 59 100 193  0
+129   L.ParsOrbit_1                                   37  58 173  0
+130   L.FrontPole_1                                   20  19 153  0
+131   L.MedOrbFront_1                                 40  63 176  0
+132   L.MedOrbFront_2                                 74 126 205  0
+133   L.MedOrbFront_3                                 23  27 158  0
+134   L.ParsTri_1                                     20  20 154  0
+135   L.ParsTri_2                                     48  79 184  0
+136   L.ParsOper_1                                    70 120 202  0
+137   L.ParsOper_2                                    20  21 155  0
+138   L.RMidFront_1                                   69 117 201  0
+139   L.RMidFront_2                                   20  19 153  0
+140   L.RMidFront_3                                   47  77 183  0
+141   L.RMidFront_4                                   83 141 212  0
+142   L.RMidFront_5                                   29  40 165  0
+143   L.RMidFront_6                                   60 102 194  0
+144   L.SupFront_1                                    58  97 192  0
+145   L.SupFront_2                                    96 162 221  0
+146   L.SupFront_3                                    38  59 174  0
+147   L.SupFront_4                                    72 122 203  0
+148   L.SupFront_5                                    21  23 156  0
+149   L.SupFront_6                                    50  82 185  0
+150   L.SupFront_7                                    86 146 214  0
+151   L.SupFront_8                                    31  45 167  0
+152   L.CMidFront_1                                   92 155 218  0
+153   L.CMidFront_2                                   35  53 171  0
+154   L.CMidFront_3                                   68 115 200  0
+155   L.Precentral_1                                 171  61  38  0
+156   L.Precentral_2                                 196  69  76  0
+157   L.Precentral_3                                 155  64  21  0
+158   L.Precentral_4                                 180  61  49  0
+159   L.Precentral_5                                 206  83 100  0
+160   L.Precentral_6                                 165  62  31  0
+161   L.Paracentral_1                                164  62  31  0
+162   L.Paracentral_2                                190  61  61  0
+163   L.Paracentral_3                                149  66  16  0
+164   L.rACC_1                                       150  31 127  0
+165   L.cACC_1                                       150  31 127  0
+166   L.PostCing_1                                   165  73 191  0
+167   L.PostCing_2                                   155  36 138  0
+168   L.IsthmusCing_1                                166  65 184  0
+169   L.Postcentral_1                                210  90 111  0
+170   L.Postcentral_2                                169  61  36  0
+171   L.Postcentral_3                                194  67  72  0
+172   L.Postcentral_4                                153  64  20  0
+173   L.Postcentral_5                                179  61  47  0
+174   L.Supramarg_1                                   86 196  84  0
+175   L.Supramarg_2                                   40 164  85  0
+176   L.Supramarg_3                                   66 184  81  0
+177   L.Supramarg_4                                   27 152  89  0
+178   L.SupPar_1                                      35 160  86  0
+179   L.SupPar_2                                      60 179  82  0
+180   L.SupPar_3                                      94 199  89  0
+181   L.SupPar_4                                      44 167  84  0
+182   L.SupPar_5                                      70 187  81  0
+183   L.SupPar_6                                      30 155  88  0
+184   L.SupPar_7                                      53 174  82  0
+185   L.InfPar_1                                      83 195  83  0
+186   L.InfPar_2                                      39 163  85  0
+187   L.InfPar_3                                      65 183  81  0
+188   L.InfPar_4                                      26 151  90  0
+189   L.InfPar_5                                      49 171  83  0
+190   L.InfPar_6                                      76 190  82  0
+191   L.Precuneus_1                                   50 172  83  0
+192   L.Precuneus_2                                   78 192  82  0
+193   L.Precuneus_3                                   36 160  86  0
+194   L.Precuneus_4                                   60 180  82  0
+195   L.Precuneus_5                                   22 148  91  0
+196   L.Cuneus_1                                     157 182  52  0
+197   L.Cuneus_2                                     207 203  86  0
+198   L.Pericalc_1                                   167 186  58  0
+199   L.Pericalc_2                                   212 202  92  0
+200   L.LatOccip_1                                   167 186  58  0
+201   L.LatOccip_2                                   212 202  92  0
+202   L.LatOccip_3                                   132 171  40  0
+203   L.LatOccip_4                                   188 196  70  0
+204   L.LatOccip_5                                    98 155  24  0
+205   L.Lingual_1                                    161 184  55  0
+206   L.Lingual_2                                    209 203  89  0
+207   L.Lingual_3                                    127 168  37  0
+208   L.Fusiform_1                                   148 118  18  0
+209   L.Fusiform_2                                   173 113  43  0
+210   L.Fusiform_3                                   199 112  74  0
+211   L.Fusiform_4                                   158 115  27  0
+212   L.ParaHipp_1                                   193 112  66  0
+213   L.Entorh_1                                     198 112  73  0
+214   L.TempPole_1                                   183 112  53  0
+215   L.InfTemp_1                                    188 112  60  0
+216   L.InfTemp_2                                    214 116  95  0
+217   L.InfTemp_3                                    173 113  42  0
+218   L.InfTemp_4                                    198 112  73  0
+219   L.MidTemp_1                                    155 116  24  0
+220   L.MidTemp_2                                    180 112  50  0
+221   L.MidTemp_3                                    205 113  83  0
+222   L.MidTemp_4                                    164 114  33  0
+223   L.BankSTS_1                                    148 118  18  0
+224   L.SupTemp_1                                    209 114  88  0
+225   L.SupTemp_2                                    168 114  37  0
+226   L.SupTemp_3                                    193 112  67  0
+227   L.SupTemp_4                                    152 117  21  0
+228   L.SupTemp_5                                    177 112  47  0
+229   L.TransTemp_1                                  211 115  92  0
+230   L.Insula_1                                      41 146 162  0
+231   L.Insula_2                                      65 182 170  0
+232   L.Insula_3                                      29 117 150  0
+
+# Left Hemisphere. Subcortical Structures (Thalamic Nuclei) 
+233   Left-Pulvinar                                  255   0   0  0
+234   Left-Anterior                                    0 255   0  0
+235   Left-Medio_Dorsal                              255 255   0  0
+236   Left-Ventral_Latero_Dorsal                     255 123   0  0
+237   Left-Central_Lateral-Lateral_Posterior-Medial_Pulvinar   0 255 255  0
+238   Left-Ventral_Anterior                          255   0 255  0
+239   Left-Ventral_Latero_Ventral                      0   0 255  0
+
+# Left Hemisphere. Subcortical Structures 
+240   Left-Thalamus_Proper                             0 118  14  0
+241   Left-Caudate                                   122 186 220  0
+242   Left-Putamen                                   236  13 176  0
+243   Left-Pallidum                                   12  48 255  0
+244   Left-Accumbens_area                            255 165   0  0
+245   Left-Hippocampus                               103 255 255  0
+246   Left-Amygdala                                  220 216  20  0
+
+# Left Hemisphere. Ventral Diencephalon 
+247   Left-VentralDC                                 165  42  42  0
+
+# Left Hemisphere. Hypothalamus 
+248   Left-Hypothalamus                              204 182 142  0
+
+# Brain Stem Structures 
+249   Brain_Stem-Midbrain                            242 104  76  0
+250   Brain_Stem-Pons                                206 195  58  0
+251   Brain_Stem-Medulla                             119 159 176  0
+252   Brain_Stem-SCP                                 142 182   0  0
+

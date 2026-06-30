@@ -1,0 +1,9 @@
+# FreeSurfer brainstem substructures LUT (recon-all -brainstem-structures)
+# Labels: 173 Midbrain, 174 Pons, 175 Medulla, 178 SCP, 179 Floculus
+# Format: label_id<TAB>label_name
+
+173	Midbrain
+174	Pons
+175	Medulla
+178	SCP
+179	Floculus

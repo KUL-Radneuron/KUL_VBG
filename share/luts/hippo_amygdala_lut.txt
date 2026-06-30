@@ -1,0 +1,54 @@
+# Hippocampal subfields and amygdala nuclei LUT
+# For use with segment_subregions hippo-amygdala (FreeSurfer 8+)
+# Label IDs match FreeSurferColorLUT.txt
+#
+# Hippocampal subfields
+203	parasubiculum
+204	presubiculum
+205	subiculum
+206	CA1
+207	CA2
+208	CA3
+209	CA4
+211	HATA
+212	fimbria
+214	molecular_layer_HP
+215	hippocampal_fissure
+217	molecular_layer_subiculum
+226	HP_tail
+230	Prosubiculum
+233	presubiculum-head
+234	presubiculum-body
+235	subiculum-head
+236	subiculum-body
+237	CA1-head
+238	CA1-body
+239	CA3-head
+240	CA3-body
+241	CA4-head
+242	CA4-body
+243	GC-ML-DG-head
+244	GC-ML-DG-body
+245	molecular_layer_HP-head
+246	molecular_layer_HP-body
+# Amygdala nuclei
+7001	Lateral-nucleus
+7002	Basolateral-nucleus
+7003	Basal-nucleus
+7004	Centromedial-nucleus
+7005	Central-nucleus
+7006	Medial-nucleus
+7007	Cortical-nucleus
+7008	Accessory-Basal-nucleus
+7009	Corticoamygdaloid-transitio
+7010	Anterior-amygdaloid-area-AAA
+7011	Fusion-amygdala-HP-FAH
+7012	Hippocampal-amygdala-transition-HATA
+7013	Endopiriform-nucleus
+7014	Lateral-nucleus-olfactory-tract
+7015	Paralaminar-nucleus
+7016	Intercalated-nucleus
+7017	Prepiriform-cortex
+7018	Periamygdaloid-cortex
+7019	Envelope-Amygdala
+7020	Extranuclear-Amydala

@@ -1,0 +1,32 @@
+# LobesStrict LUT
+# Label IDs produced by: mri_aparc2aseg --annot lobesStrict --labelwm --hypo-as-wm --rip-unknown --volmask
+# Cortical: 1000+index (LH), 2000+index (RH)
+# WM:       3000+index (LH), 4000+index (RH)
+# lobesStrict annotation indices: 1=frontal 3=cingulate 4=occipital 5=temporal 6=parietal 7=insula
+#
+1001	ctx-lh-frontal-lobe
+1003	ctx-lh-cingulate-lobe
+1004	ctx-lh-occipital-lobe
+1005	ctx-lh-temporal-lobe
+1006	ctx-lh-parietal-lobe
+1007	ctx-lh-insula-lobe
+2001	ctx-rh-frontal-lobe
+2003	ctx-rh-cingulate-lobe
+2004	ctx-rh-occipital-lobe
+2005	ctx-rh-temporal-lobe
+2006	ctx-rh-parietal-lobe
+2007	ctx-rh-insula-lobe
+3001	wm-lh-frontal-lobe
+3003	wm-lh-cingulate-lobe
+3004	wm-lh-occipital-lobe
+3005	wm-lh-temporal-lobe
+3006	wm-lh-parietal-lobe
+3007	wm-lh-insula-lobe
+4001	wm-rh-frontal-lobe
+4003	wm-rh-cingulate-lobe
+4004	wm-rh-occipital-lobe
+4005	wm-rh-temporal-lobe
+4006	wm-rh-parietal-lobe
+4007	wm-rh-insula-lobe
+5001	wm-lh-unsegmented
+5002	wm-rh-unsegmented

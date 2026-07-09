@@ -124,6 +124,13 @@ def norm_display(vol, mask=None, plo=2, phi=98):
     return np.clip((vol - lo) / max(hi - lo, 1e-6), 0, 1)
 
 
+def hex6(c):
+    """Expand #rgb/#rgba shorthand for old matplotlib."""
+    if isinstance(c, str) and c.startswith("#") and len(c) in (4, 5):
+        return "#" + "".join(ch * 2 for ch in c[1:])
+    return c
+
+
 def lesion_com(lmask):
     coords = np.argwhere(lmask)
     if len(coords) == 0:
@@ -304,7 +311,7 @@ def render_metrics_summary(metrics, out_path):
     ax1.tick_params(colors="white", labelsize=6)
     ax1.set_facecolor("#1a1a1a")
     for spine in ax1.spines.values():
-        spine.set_edgecolor("#444")
+        spine.set_edgecolor(hex6("#444"))
 
     # Gradient bar
     ax2 = fig.add_subplot(2, 3, 2)
@@ -313,7 +320,7 @@ def render_metrics_summary(metrics, out_path):
     ax2.tick_params(colors="white", labelsize=6)
     ax2.set_facecolor("#1a1a1a")
     for spine in ax2.spines.values():
-        spine.set_edgecolor("#444")
+        spine.set_edgecolor(hex6("#444"))
 
     # NCC heatmap
     sim = metrics.get("similarity", {})
@@ -365,7 +372,7 @@ def render_metrics_summary(metrics, out_path):
         ax4.tick_params(colors="white", labelsize=6)
         ax4.set_facecolor("#1a1a1a")
         for spine in ax4.spines.values():
-            spine.set_edgecolor("#444")
+            spine.set_edgecolor(hex6("#444"))
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor="#111111")

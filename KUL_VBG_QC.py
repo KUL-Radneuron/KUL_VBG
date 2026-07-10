@@ -36,6 +36,34 @@ import matplotlib.gridspec as gridspec
 from scipy.ndimage import uniform_filter, binary_dilation, binary_erosion, zoom
 
 
+# ── artifact thresholds (single source of truth) ─────────────────────────────
+# dark_voxel_fraction is warn_only: it's computed as the fraction of lesion-mask
+# voxels below native tissue's 10th percentile intensity, across *all* tissue
+# types (not WM-only, despite the historical docstring) -- a lesion mask that
+# includes CSF-like/sulcal/ventricular margins (common for large lesions) will
+# show a nontrivial "dark" fraction even on a well-filled result, since P10 by
+# definition puts ~10% of native tissue below it already. It's still reported
+# and flagged, but on its own it no longer flips the overall verdict to FAIL.
+_ARTIFACT_THRESHOLDS = {
+    "dark_voxel_fraction":       {"threshold": 0.05, "warn_only": True},
+    "boundary_grad_ratio":       {"threshold": 2.0,  "warn_only": False},
+    "wm_intensity_mismatch":     {"threshold": 0.10, "warn_only": False},
+    "fill_grad_vs_native_ratio": {"threshold": 1.5,  "warn_only": False},
+    "stitch_score":              {"threshold": 2.5,  "warn_only": False},
+}
+
+
+def _artifact_threshold(k):
+    """Bare numeric threshold for metric k, or None if k isn't a scored artifact metric."""
+    entry = _ARTIFACT_THRESHOLDS.get(k)
+    return entry["threshold"] if entry else None
+
+
+def _artifact_is_warn_only(k):
+    entry = _ARTIFACT_THRESHOLDS.get(k)
+    return bool(entry and entry["warn_only"])
+
+
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def load_can(path):
@@ -348,18 +376,16 @@ def render_metrics_summary(metrics, out_path):
     art_labels = []
     art_vals = []
     art_colors = []
-    thresholds = {
-        "dark_voxel_fraction": 0.05,
-        "boundary_grad_ratio": 2.0,
-        "wm_intensity_mismatch": 0.10,
-        "fill_grad_vs_native_ratio": 1.5,
-    }
+    thresholds = {k: v["threshold"] for k, v in _ARTIFACT_THRESHOLDS.items()}
     for k, v in art.items():
         if isinstance(v, (int, float)):
             art_labels.append(k.replace("_", "\n"))
             art_vals.append(v)
             thr = thresholds.get(k, None)
-            art_colors.append("#e53935" if thr is not None and v > thr else "#43a047")
+            if thr is not None and v > thr:
+                art_colors.append("#fb8c00" if _artifact_is_warn_only(k) else "#e53935")
+            else:
+                art_colors.append("#43a047")
     if art_labels:
         ax4.bar(art_labels, art_vals, color=art_colors)
         for k, thr in thresholds.items():
@@ -445,7 +471,11 @@ def compute_artifacts(vol_filled, vol_native_clean, lmask, boundary_ring,
                       voxel_size=(1,1,1)):
     """
     Returns artifact metrics dict:
-      dark_voxel_fraction      — fraction of lesion voxels below native WM P10
+      dark_voxel_fraction      — fraction of lesion voxels below native tissue's P10
+                                 (all tissue types outside the lesion, not WM-only;
+                                 warn_only in _ARTIFACT_THRESHOLDS since a lesion mask
+                                 with CSF-like/sulcal margins shows some "dark" fraction
+                                 even on a well-filled result)
       wm_intensity_mismatch    — |P95(fill) - P95(native)| / P95(native)
       boundary_grad_ratio      — mean gradient at boundary ring / mean gradient native
       fill_grad_vs_native_ratio— mean gradient inside lesion / mean gradient native
@@ -510,20 +540,15 @@ tr:hover td{background:#f0f7ff}
 .qc-img{max-width:100%;border:1px solid #dee2e6;border-radius:4px;margin:6px 0;display:block}
 .artifact-ok{color:#27ae60;font-weight:bold}
 .artifact-fail{color:#e74c3c;font-weight:bold}
+.artifact-warn{color:#e67e22;font-weight:bold}
 .overall-pass{background:#d4edda;border:1px solid #c3e6cb;color:#155724;
+              border-radius:4px;padding:10px 14px;margin-top:10px;font-weight:bold}
+.overall-warn{background:#fff3cd;border:1px solid #ffeeba;color:#856404;
               border-radius:4px;padding:10px 14px;margin-top:10px;font-weight:bold}
 .overall-fail{background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;
               border-radius:4px;padding:10px 14px;margin-top:10px;font-weight:bold}
 a{color:#3498db}
 """
-
-_THRESHOLDS = {
-    "dark_voxel_fraction": 0.05,
-    "boundary_grad_ratio": 2.0,
-    "wm_intensity_mismatch": 0.10,
-    "fill_grad_vs_native_ratio": 1.5,
-    "stitch_score": 2.5,
-}
 
 
 def _png_b64(path):
@@ -632,15 +657,25 @@ def write_qc_html(html_path, subject, proc, out_d, scripts_dir,
     # ── artifact scores ────────────────────────────────────────────────────────
     art_rows = ""
     fails = []
+    warns = []
     for k, v in art_metrics.items():
         if isinstance(v, float):
-            thr = _THRESHOLDS.get(k)
+            thr = _artifact_threshold(k)
             over = thr is not None and v > thr
-            cls = "artifact-fail" if over else "artifact-ok"
+            warn_only = _artifact_is_warn_only(k)
+            if not over:
+                cls = "artifact-ok"
+            elif warn_only:
+                cls = "artifact-warn"
+            else:
+                cls = "artifact-fail"
             flag = f" &nbsp;<b>↑ &gt; {thr}</b>" if over else ""
             art_rows += f"<tr><td>{k}</td><td class='{cls}'>{v:.4f}{flag}</td></tr>"
             if over:
-                fails.append(f"{k} = {v:.3f} (threshold {thr})")
+                if warn_only:
+                    warns.append(f"{k} = {v:.3f} (threshold {thr}, informational — not scored as failure)")
+                else:
+                    fails.append(f"{k} = {v:.3f} (threshold {thr})")
         else:
             art_rows += f"<tr><td>{k}</td><td>{v}</td></tr>"
     art_html = (f"<table><thead><tr><th>Metric</th><th>Value</th></tr></thead>"
@@ -652,6 +687,10 @@ def write_qc_html(html_path, subject, proc, out_d, scripts_dir,
     if all_fails:
         verdict = ("<div class='overall-fail'>&#10008; FAIL<ul>"
                    + "".join(f"<li>{f}</li>" for f in all_fails)
+                   + "</ul></div>")
+    elif warns:
+        verdict = ("<div class='overall-warn'>&#9888; PASS (with warnings)<ul>"
+                   + "".join(f"<li>{w}</li>" for w in warns)
                    + "</ul></div>")
     else:
         verdict = "<div class='overall-pass'>&#10004; PASS — no thresholds exceeded, all steps done</div>"
@@ -955,14 +994,15 @@ def main():
         art_metrics, dark_mask_nat = compute_artifacts(
             final_fill, _tc, _lm_ff, _bnd, vs_nat)
         print(f"  dark_voxel_fraction   = {art_metrics['dark_voxel_fraction']:.4f}"
-              + (" ← ABOVE THRESHOLD" if art_metrics["dark_voxel_fraction"] > 0.05 else ""))
+              + (" ← ABOVE THRESHOLD (informational, not scored as failure)"
+                 if art_metrics["dark_voxel_fraction"] > _artifact_threshold("dark_voxel_fraction") else ""))
         print(f"  wm_intensity_mismatch = {art_metrics['wm_intensity_mismatch']:.4f}"
-              + (" ← ABOVE THRESHOLD" if art_metrics["wm_intensity_mismatch"] > 0.10 else ""))
+              + (" ← ABOVE THRESHOLD" if art_metrics["wm_intensity_mismatch"] > _artifact_threshold("wm_intensity_mismatch") else ""))
         print(f"  boundary_grad_ratio   = {art_metrics['boundary_grad_ratio']:.4f}"
               + (" ← ABOVE THRESHOLD (possible stitch line)"
-                 if art_metrics["boundary_grad_ratio"] > 2.0 else ""))
+                 if art_metrics["boundary_grad_ratio"] > _artifact_threshold("boundary_grad_ratio") else ""))
         print(f"  stitch_score          = {art_metrics['stitch_score']:.4f}"
-              + (" ← HIGH (check boundary)" if art_metrics["stitch_score"] > 2.5 else ""))
+              + (" ← HIGH (check boundary)" if art_metrics["stitch_score"] > _artifact_threshold("stitch_score") else ""))
         print(f"  n_dark_voxels         = {art_metrics['n_dark_voxels']}")
     else:
         print("  SKIP: final fill or native lesion mask not found")
@@ -1090,17 +1130,21 @@ def main():
             W(f"  {key:45s}  NCC={ncc_v}  SSIM={ssim_v}")
         W()
         W("── Artifact detection ──")
+        text_fails = []
+        text_warns = []
         if art_metrics:
             for k, v in art_metrics.items():
                 if isinstance(v, float):
                     flag = ""
-                    thresh = {"dark_voxel_fraction": 0.05,
-                              "boundary_grad_ratio": 2.0,
-                              "wm_intensity_mismatch": 0.10,
-                              "fill_grad_vs_native_ratio": 1.5,
-                              "stitch_score": 2.5}.get(k)
-                    if thresh is not None and v > thresh:
-                        flag = "  ← ABOVE THRESHOLD"
+                    thresh = _artifact_threshold(k)
+                    over = thresh is not None and v > thresh
+                    warn_only = _artifact_is_warn_only(k)
+                    if over:
+                        flag = "  ← ABOVE THRESHOLD (informational)" if warn_only else "  ← ABOVE THRESHOLD"
+                        if warn_only:
+                            text_warns.append(f"{k}={v:.3f} > {thresh} (informational — not scored as failure)")
+                        else:
+                            text_fails.append(f"{k}={v:.3f} > {thresh}")
                     W(f"  {k:35s} = {v:.4f}{flag}")
                 else:
                     W(f"  {k:35s} = {v}")
@@ -1108,17 +1152,14 @@ def main():
             W("  [not computed]")
         W()
         W("── Overall pass/fail ──")
-        fails = []
-        if art_metrics.get("dark_voxel_fraction", 0) > 0.05:
-            fails.append(f"dark_voxel_fraction={art_metrics['dark_voxel_fraction']:.3f} > 0.05")
-        if art_metrics.get("wm_intensity_mismatch", 0) > 0.10:
-            fails.append(f"wm_intensity_mismatch={art_metrics['wm_intensity_mismatch']:.3f} > 0.10")
-        if art_metrics.get("boundary_grad_ratio", 0) > 2.0:
-            fails.append(f"boundary_grad_ratio={art_metrics['boundary_grad_ratio']:.3f} > 2.0 (stitch line?)")
-        if fails:
+        if text_fails:
             W("  FAIL:")
-            for f in fails:
+            for f in text_fails:
                 W(f"    - {f}")
+        elif text_warns:
+            W("  PASS (with warnings):")
+            for w in text_warns:
+                W(f"    - {w}")
         else:
             W("  PASS — no artifact thresholds exceeded")
         W()

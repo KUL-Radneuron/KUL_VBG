@@ -1665,7 +1665,12 @@ function KUL_Lmask_part2 {
 
     done
 
-    for _pid in ${_ts_pids[@]}; do wait ${_pid}; done
+    _ts_fail=0
+    for _pid in ${_ts_pids[@]}; do wait ${_pid} || _ts_fail=1; done
+    if [[ ${_ts_fail} -ne 0 ]]; then
+        echo " ERROR: one or more parallel tissue prior warp jobs failed, see ${prep_log}" | tee -a ${prep_log}
+        exit 1
+    fi
     echo " [parallel] all 4 tissue warp jobs finished @ $(date "+%Y-%m-%d_%H-%M-%S")" | tee -a ${prep_log}
 
     # TASK 1.6: dependent mrcalc steps run sequentially (each depends on the warp output above)
@@ -2759,8 +2764,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         task_in="fslmaths ${str_pp}_donor_sharp_full.nii.gz -mas ${Lmask_bin_core} \
         -add $(fslmaths ${str_pp}_donor_local_scaled.nii.gz -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
-        -odt float 2>/dev/null; echo ${str_pp}_donor_bzone_unsharp.nii.gz) \
-        ${str_pp}_donor_T1_native_S.nii.gz 2>/dev/null || \
+        -odt float 2>>${prep_log}; echo ${str_pp}_donor_bzone_unsharp.nii.gz) \
+        ${str_pp}_donor_T1_native_S.nii.gz 2>>${prep_log} || \
         (fslmaths ${str_pp}_donor_local_scaled.nii.gz -mas ${str_pp}_Lmask_boundary_zone.nii.gz ${str_pp}_donor_bzone_unsharp.nii.gz && \
         fslmaths ${str_pp}_donor_sharp_full.nii.gz -mas ${Lmask_bin_core} \
         -add ${str_pp}_donor_bzone_unsharp.nii.gz ${str_pp}_donor_T1_native_S.nii.gz)"
@@ -2778,9 +2783,9 @@ if [[ "${E_flag}" -eq 0 ]]; then
             echo " [-H] Building hybrid donor: stitched core + InverseWarp boundary zone" | tee -a ${prep_log}
             task_in="fslmaths ${str_pp}_donor_T1_native_S.nii.gz -mas ${Lmask_bin_core} \
             -add $(fslmaths ${T1_filled_bk2nat1} -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
-                ${str_pp}_initial_fill_bzone.nii.gz 2>/dev/null; \
+                ${str_pp}_initial_fill_bzone.nii.gz 2>>${prep_log}; \
                 echo ${str_pp}_initial_fill_bzone.nii.gz) \
-            ${str_pp}_donor_hybrid.nii.gz 2>/dev/null || \
+            ${str_pp}_donor_hybrid.nii.gz 2>>${prep_log} || \
             (fslmaths ${T1_filled_bk2nat1} -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
                 ${str_pp}_initial_fill_bzone.nii.gz && \
             fslmaths ${str_pp}_donor_T1_native_S.nii.gz -mas ${Lmask_bin_core} \
@@ -2796,7 +2801,7 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # result = donor × Lmask_bin_s3 + T1_clean × Lmask_binv_s3
         task_in="fslmaths ${donor_for_splice} -mul ${Lmask_bin_s3} \
         -add $(fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} \
-            ${str_pp}_native_outside.nii.gz 2>/dev/null; \
+            ${str_pp}_native_outside.nii.gz 2>>${prep_log}; \
             echo ${str_pp}_native_outside.nii.gz) \
         -thr 0.01 ${T1_nat_filled_out_1}"
 
@@ -3930,7 +3935,14 @@ if command -v python3 &>/dev/null && [[ -f "${function_path}/KUL_VBG_QC.py" ]]; 
         -d "${recall_scripts:-}" \
         --html "${_qc_html}" \
         ${_overlap_html_arg} \
-        2>&1 | tee -a ${prep_log} || true
+        2>&1 | tee -a ${prep_log}
+    _qc_rc=${PIPESTATUS[0]}
+    # QC is diagnostic, not core output -- a crash here must not abort a run that otherwise
+    # produced valid results, but it must not be silently swallowed either (the previous
+    # blanket `|| true` masked genuine QC-script crashes, not just a nonzero QC verdict).
+    if [[ ${_qc_rc} -ne 0 ]]; then
+        echo " WARNING: KUL_VBG_QC.py crashed (exit ${_qc_rc}) — QC report may be missing/incomplete, check ${prep_log}" | tee -a ${prep_log}
+    fi
 fi
 
 run_time_s=($(echo "scale=4; (${finish_t}-${start_t})" | bc ))

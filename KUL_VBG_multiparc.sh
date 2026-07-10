@@ -287,7 +287,8 @@ else
             rm -f "${_raw_parc}"
         else
             log "  WARNING: no MSBP LUT for scale ${_scale} — IDs not remapped"
-            mv "${_raw_parc}" "${mri_dir}/lausanne2018.scale${_scale}+aseg.mgz"
+            mv "${_raw_parc}" "${mri_dir}/lausanne2018.scale${_scale}+aseg.mgz" \
+                || { log "ERROR: mv of ${_raw_parc} failed — NOT writing multiscale_parc.done"; exit 1; }
         fi
     done
 

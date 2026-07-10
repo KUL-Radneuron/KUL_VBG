@@ -3739,7 +3739,8 @@ if [[ "${M_flag}" -eq 1 ]]; then
                 rm -f "${_raw_parc}"
             else
                 # No reference LUT for this scale — keep raw output as-is
-                mv "${_raw_parc}" "${fs_output}/${subj}/mri/lausanne2018.scale${_scale}+aseg.mgz"
+                mv "${_raw_parc}" "${fs_output}/${subj}/mri/lausanne2018.scale${_scale}+aseg.mgz" \
+                    || { echo "ERROR: mv of ${_raw_parc} failed — NOT writing multiscale_parc.done" | tee -a ${prep_log}; exit 1; }
                 echo " Warning: no MSBP reference LUT for scale ${_scale} — IDs not remapped" | tee -a ${prep_log}
             fi
 

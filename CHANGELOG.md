@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased (working tree, 2026-07-11 — extend status-reporting pass to multiparc scripts)
+
+Follow-up to the 2026-07-10 pass below, applying the same `.done`-marker audit to
+`KUL_VBG_multiparc.sh` and the multiparc-related section of `KUL_VBG.sh` that were
+flagged (but not checked) in that pass's final sweep.
+
+Most of both files were already correct: `run`/`task_exec` (recon-all) is fatal
+with `exit 1` on failure, so those `.done` touches were already unreachable after
+a real failure, and the thalamic/brainstem/hippo-amygdala/hypothalamic subregion
+steps already use `if run_soft/task_exec_soft; then touch ...; else WARNING; fi`
+correctly. The one real gap in both files: the Lausanne2018 "no reference LUT for
+this scale" fallback path does a raw `mv` (not routed through `run`/`task_exec`)
+with nothing checking whether it succeeded before `multiscale_parc.done` gets
+touched. Now checked explicitly in both `KUL_VBG_multiparc.sh` and `KUL_VBG.sh`.
+
 ## Unreleased (working tree, 2026-07-10 — status-reporting correctness + QC strictness fix)
 
 Companion pass to the same-day logging/status-reporting fixes in KUL_FWT and KUL_NIS.

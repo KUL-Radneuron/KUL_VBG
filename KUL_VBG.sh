@@ -42,6 +42,12 @@
 # Task 4.5 — Extract -M block into standalone KUL_VBG_multiparc.sh (runs on any completed recon-all output, not just VBG output)
 # Task 4.6 — Add hypothalamic subunit segmentation (mri_segment_hypothalamic_subunits, FS >= 7.2) to the -M block
 # Task 4.7 — Add -O flag: per-atlas lesion overlap reports (KUL_lesion_overlap.py) for -P and -M parcellations, plus a combined HTML report
+# Task 4.8/4.9 — FS 8.2.0 mris_register buffer-overflow workaround: recon-all/FastSurfer-backed
+#            parcellation (-P 1/2/3) now redirects SUBJECTS_DIR through a short /tmp symlink
+#            before running recon-all/FastSurfer, avoiding a confirmed mris_register crash on
+#            long absolute paths (not a simple length threshold — found and fixed via gdb
+#            crash inspection, not lesion/geometry related — see VBG_FS820_mris_register_bugreport.md).
+#            A path-length sanity check remains as a secondary backstop.
 # Dev/validation environment: FreeSurfer 8.2.0
 
 # TASK 4.7: version bumped to 2.0 to reflect the scope of the dev branch modernization
@@ -123,6 +129,11 @@ Optional arguments:
          Requires share/luts/<atlas>_lut.txt for each atlas (shipped with VBG).
     -m:  full path to intermediate output dir
     -o:  full path to output dir (if not set reverts to default output ./VBG_output)
+         KEEP THIS SHORT if running -P 1/2/3: FreeSurfer 8.2.0's mris_register aborts
+         with a buffer overflow when the resulting SUBJECTS_DIR/subject path is too
+         long (confirmed independent of lesion/brain geometry). VBG will refuse to
+         start recon-all/FastSurfer-backed parcellation rather than crash hours in —
+         see the -o/-m notes below and VBG_FS820_mris_register_bugreport.md.
     -n:  number of cpu for parallelisation (default is 6)
     -v:  show output from mrtrix commands
     -h:  prints help menu
@@ -133,12 +144,90 @@ Notes:
     - If your data is not in BIDS, then use -a without -b
     - This version is for validation only.
     - Requires FreeSurfer >= 7.3 for SynthStrip (-B 1) and SynthSeg (-P 4); use -B 2 with older installations.
+    - FreeSurfer 8.2.0 KNOWN ISSUE: mris_register (used internally by -P 1/2/3) aborts
+      with a buffer overflow ("*** buffer overflow detected ***", SIGABRT) if the
+      absolute SUBJECTS_DIR/subject path is too long — this is a FreeSurfer bug, not
+      a VBG one, and is unrelated to lesion size or brain geometry. VBG checks the
+      projected path length before starting recon-all/FastSurfer and exits early with
+      guidance if it's too long, instead of failing hours into the run. Keep -o/-m
+      short (close to filesystem root) if you hit this. Full writeup, including how
+      this was confirmed and reproduced on demand: VBG_FS820_mris_register_bugreport.md.
 
 
 
 USAGE
 
     exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Task 4.8/4.9 — FreeSurfer 8.2.0 mris_register buffer-overflow workaround.
+#
+# mris_register (invoked internally by recon-all and by FastSurfer's surface
+# module during spherical/atlas registration, -P 1/2/3) aborts with a glibc
+# "*** buffer overflow detected ***" (SIGABRT, fortified strcpy) when the
+# absolute SUBJECTS_DIR path it operates on is long enough. Root cause,
+# found by gdb inspection of the actual crash frame: some internal routine
+# builds the message "DCM failed to open file: <SUBJECTS_DIR>/<subj>/" (an
+# apparent generic auto-detect-input-format attempt that tries DICOM first
+# and logs the failure) into a fixed 256-byte buffer via strcpy, with no
+# length check. It is NOT simply "path length": two real absolute paths of
+# similar length but different structure gave different results (one crashed,
+# one didn't) in testing — so no length threshold measured against
+# lh.sphere/rh.sphere.reg can be trusted as a precise predictor. It is NOT
+# related to lesion size, graft geometry, or brain shape.
+#
+# What actually works, confirmed by direct testing against the real crashing
+# surface: redirecting SUBJECTS_DIR through a short symlink (e.g. under
+# /tmp) to the real (long, human-readable) output location. mris_register
+# does not resolve the symlink to its long target before building the
+# failing message, so the crash is avoided regardless of how long the real
+# underlying path is. KUL_shorten_SUBJECTS_DIR does exactly this — every
+# fs_output/fasu_output assignment for -P 1/2/3 is redirected through a short
+# symlink immediately after being computed, transparently, so nothing else
+# in this script (or downstream consumers of fs_output's contents) needs to
+# change: the files still physically live at the original long path.
+#
+# KUL_check_FS_path_length is kept as a secondary sanity check only (it
+# should always pass now, since it runs against the already-shortened path)
+# — a real failure there means the symlink step itself didn't work.
+# Full writeup: VBG_FS820_mris_register_bugreport.md.
+# ---------------------------------------------------------------------------
+KUL_FS_PATH_LIMIT=230
+
+function KUL_shorten_SUBJECTS_DIR {
+    # $1: real (possibly too-long) SUBJECTS_DIR path
+    # $2: short label, so multiple symlinks in the same run don't collide
+    # Sets global _short_sd to a short symlink pointing at $1; creates $1
+    # first so the symlink never dangles.
+    local _real="$1"
+    local _label="$2"
+    mkdir -p "${_real}" >/dev/null 2>&1
+    _short_sd="/tmp/KUL_VBG_${_label}_$$"
+    rm -f "${_short_sd}"
+    ln -sfn "${_real}" "${_short_sd}"
+}
+
+function KUL_check_FS_path_length {
+    # $1: fs_output   (the SUBJECTS_DIR recon-all/FastSurfer will use — should
+    #                  already be the short, symlinked path by the time this
+    #                  is called)
+    # $2: subject dir (e.g. ${subj}${ses_long})
+    local _sd="$1"
+    local _sj="$2"
+    local _full="${_sd}/${_sj}/surf/rh.sphere.reg"
+    local _len=${#_full}
+    if [[ ${_len} -gt ${KUL_FS_PATH_LIMIT} ]]; then
+        echo | tee -a ${prep_log}
+        echo "ERROR: SUBJECTS_DIR path too long for FreeSurfer 8.2.0's mris_register," | tee -a ${prep_log}
+        echo "  even after redirecting through a short symlink." | tee -a ${prep_log}
+        echo "  Projected path (${_len} chars, limit ${KUL_FS_PATH_LIMIT}):" | tee -a ${prep_log}
+        echo "  ${_full}" | tee -a ${prep_log}
+        echo "  This means KUL_shorten_SUBJECTS_DIR didn't run or /tmp itself is unusually" | tee -a ${prep_log}
+        echo "  deep. See VBG_FS820_mris_register_bugreport.md for details." | tee -a ${prep_log}
+        echo | tee -a ${prep_log}
+        exit 2
+    fi
 }
 
 
@@ -451,10 +540,8 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
 
 
     
-    ### STEFAN NEED TO DO: prefer to set KUL_compute/sub-participant/VBG as default output?
-    # AR: this can easily be changed using -o
-    # no objections to changing default behavior for -o
-    # We just need to keep FS output stable, as this will be needed for MSBP and other BIDS_apps
+    # Default output location when -o isn't given; callers that care about
+    # placement (e.g. KUL_clinical_fmridti.sh) always pass -o explicitly.
     if [[ "$o_flag" -eq 0 ]]; then
 
         output_d="${cwd}/BIDS/derivatives/output_VBG/${subj}${ses_long}"
@@ -3036,9 +3123,14 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         else
 
-            fs_output="${str_op}_FS_output"
+            fs_output="${output_d}_FS_output"
 
         fi
+
+        KUL_shorten_SUBJECTS_DIR "${fs_output}" "fs"
+        fs_output="${_short_sd}"
+
+        KUL_check_FS_path_length "${fs_output}" "${subj}${ses_long}"
 
         recall_scripts="${fs_output}/${subj}/scripts"
 
@@ -3126,11 +3218,19 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         else
 
-            fs_output="${str_op}_FS_output"
+            fs_output="${output_d}_FS_output"
 
         fi
 
-        fasu_output="${str_op}fastsurfer"
+        KUL_shorten_SUBJECTS_DIR "${fs_output}" "fs"
+        fs_output="${_short_sd}"
+
+        KUL_check_FS_path_length "${fs_output}" "${subj}${ses_long}"
+
+        fasu_output="${output_d}fastsurfer"
+
+        KUL_shorten_SUBJECTS_DIR "${fasu_output}" "fasu"
+        fasu_output="${_short_sd}"
 
         recall_scripts="${fs_output}/${subj}/scripts"
 
@@ -3239,8 +3339,8 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             # time to copy the surfaces and labels from FaSu to FS dir
             # here we run FastSurfer first and 
 
-            cp -rf ${output_d}/${subj}${ses_long}fastsurfer/${subj}/surf ${output_d}/${subj}${ses_long}_FS_output/${subj}/
-            cp -rf ${output_d}/${subj}${ses_long}fastsurfer/${subj}/label ${output_d}/${subj}${ses_long}_FS_output/${subj}/
+            cp -rf ${fasu_output}/${subj}/surf ${fs_output}/${subj}/
+            cp -rf ${fasu_output}/${subj}/label ${fs_output}/${subj}/
 
             # task_in="recon-all -s ${subj} -sd ${fs_output} -openmp ${ncpu} -parallel -all -noskullstrip"
 
@@ -3301,7 +3401,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         else
 
-            fs_output="${str_op}_synthseg_output"
+            fs_output="${output_d}_synthseg_output"
 
         fi
 
@@ -3363,9 +3463,14 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         else
 
-            fs_output="${str_op}fastsurfer"
+            fs_output="${output_d}fastsurfer"
 
         fi
+
+        KUL_shorten_SUBJECTS_DIR "${fs_output}" "fs"
+        fs_output="${_short_sd}"
+
+        KUL_check_FS_path_length "${fs_output}" "${subj}${ses_long}"
 
         recall_scripts="${fs_output}/${subj}/scripts"
 

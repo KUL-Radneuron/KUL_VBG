@@ -3268,7 +3268,20 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             FaSu_loc=$(which run_fastsurfer.sh)
             user_id_str=$(id -u $(whoami))
             T1_4_FaSu=$(basename ${T1_4_parc})
-            nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+            # Guard nvidia-smi's absence the same way the -P 2 block below does
+            # (see the identical check before its own batch-size logic). Without
+            # this, a machine with no nvidia-smi left nvram as an EMPTY string:
+            # the [[ ! -z ]] test below correctly fell through to batch_fasu=4,
+            # but the later `[ $nvram -lt 5500 ]` then evaluated as `[ -lt 5500 ]`,
+            # which bash reports as "unary operator expected" and treats as
+            # FALSE -- selecting the CUDA branch (FaSu_cpu="") on a machine with
+            # no GPU at all. Silent, and only visible as a confusing FastSurfer
+            # failure later. Setting nvram=0 makes both tests behave correctly.
+            if ! command -v nvidia-smi &> /dev/null; then
+                nvram=0
+            else
+                nvram=$(echo $(nvidia-smi --query-gpu=memory.free --format=csv) | rev | cut -d " " -f2 | rev)
+            fi
             if [[ ! -z ${nvram} ]]; then
                 if [[ ${nvram} -lt 6000 ]]; then
                     batch_fasu="4"

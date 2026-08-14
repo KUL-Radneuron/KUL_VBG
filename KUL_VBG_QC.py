@@ -325,9 +325,18 @@ def render_artifact_panel(vol_filled, lmask, boundary_ring, dark_mask, out_path,
 
 def render_metrics_summary(metrics, out_path):
     """Bar charts of per-stage P95, NCC heatmap, artifact scores."""
-    stages = [k for k in metrics["per_stage"] if metrics["per_stage"][k]["p95_in_lesion"] > 0]
+    # compute_per_stage_metrics() returns every field as None when a stage's
+    # volume could not be loaded (its `vol is None` branch), so the values here
+    # are None rather than 0 for any stage that was skipped. Comparing None > 0
+    # raises TypeError on Python 3, which crashed this panel — and with it the
+    # whole QC script — after all the other panels had already been written.
+    # Seen on a real run where Filled_MNI was absent while all 8 other stages
+    # were fine. Guard for None first, matching how the console print, the HTML
+    # report and the plain-text report already handle the same case.
+    stages = [k for k, v in metrics["per_stage"].items()
+              if v.get("p95_in_lesion") is not None and v["p95_in_lesion"] > 0]
     p95_vals = [metrics["per_stage"][s]["p95_in_lesion"] for s in stages]
-    grad_vals = [metrics["per_stage"][s]["grad_mean_in_lesion"] for s in stages]
+    grad_vals = [metrics["per_stage"][s]["grad_mean_in_lesion"] or 0.0 for s in stages]
 
     fig = plt.figure(figsize=(14, 8), facecolor="#111111")
     fig.suptitle("KUL_VBG QC — Metric Summary", color="white", fontsize=12)

@@ -33,24 +33,33 @@ The graphical solution of the VBG workflow is shown here:
 
 VBG was tested in Mac OSX, WSL2 on WIN11, Ubuntu 18.0, 20.04, Mint 20, 21, and CentOS. 
 
-VBG can be installed locally after installing the dependencies listed below
+VBG can be installed locally after installing the dependencies listed below.
 
-Another option, is to download the Docker image from docker hub.
-See below for further details.
+Alternatively, use the container images — see **Using VBG via Docker or
+Apptainer** below. Apptainer in particular needs no root at all, which makes it
+the practical option on a shared/HPC server.
 
-**Updated Dependencies for installing VBG locally:**
+**Dependencies for installing VBG locally (v2.0):**
 
-a) ANTs v2.3.1 and ANTsX scripts
+a) FreeSurfer **>= 7.3** (validated on 8.2.0) — required, not optional. VBG 2.0
+   uses `mri_synthstrip` for brain extraction (`-B 1`), `mri_synthseg` (`-P 4`),
+   and `segment_subregions` / `mri_segment_hypothalamic_subunits` for the
+   multi-atlas block (`-M`). None of these exist in FreeSurfer 6.
 
-b) FSL v6.0
+b) ANTs v2.4.4 and the ANTsX scripts
 
-c) MRtrix3 v3.0.2-64-g3eadb340
+c) FSL v6.0.7 (only `fslmaths`, `fslstats`, `fslreorient2std`, `fslswapdim`,
+   `fslorient` and `imcp` are actually used)
 
-d) HD-BET
+d) MRtrix3 v3.0.4+ (command-line tools only; `mrview` is not needed)
 
-f) Freesurfer v6.0
+e) FastSurfer — only required for `-P 2` / `-P 3`
 
-e) FastSurfer
+f) Python 3 with `numpy`, `scipy`, `nibabel`, `matplotlib` (for `KUL_VBG_QC.py`
+   and `KUL_lesion_overlap.py`)
+
+> **Note:** HD-BET is no longer a dependency. VBG 2.0 replaced both HD-BET code
+> paths with SynthStrip (`-B 1`, default) and ANTs-BET (`-B 2`).
 
 ** Check (https://github.com/treanus/KUL_Linux_Installation.git) for help with setting up your environment with different neuroimaging packages.
 
@@ -112,7 +121,6 @@ Optional arguments:
 Notes: 
 
     - Input flags -b and -a are mutually exclusive, if your data is in BIDS use -b, and if not then specify exact path and name for the patient's T1.nii.gz 
-    - In case of trouble with HD-BET see lines (1177 - 1221)
     - You need a high resolution T1 WI and a lesion mask in the same space for VBG to run
     - If you end up with an empty image, it is possible you have a mismatch between the T1 and lesion mask
     - The lesion mask can be generated with any lesion segmentation tool.
@@ -123,20 +131,57 @@ Installation instructions:
     - Clone this repository, add the installation directory to your path in Bash shell.
     - Ensure that all dependencies are met, FastSurfer is only required if you will use it for parcellation (i.e. with -P 2 or -P 3)
 
-**Using VBG via Docker:**
+## Using VBG via Docker or Apptainer
 
-To run VBG via docker please run the following command to pull the docker image
+Container images bundle FreeSurfer 8.2.0, FSL, ANTs, MRtrix3, FastSurfer and
+VBG itself, so there is nothing to install beyond the container runtime.
 
-docker pull radwankul/kul_vbg_mint:latest
+Full documentation, build instructions and troubleshooting are in
+[`Docker/README.md`](Docker/README.md).
 
-To run the image after pulling is completed use the following command and see the user guide above for furthe usage options.
+**You must supply your own FreeSurfer license.** It is deliberately not included
+in the image — the license is issued per user and cannot be redistributed.
+Register for free at <https://surfer.nmr.mgh.harvard.edu/registration.html>,
+then bind it in at `/licence/license.txt` as shown below.
 
-Remember to replace /path/to/freesurfer/license.txt with the path to your freesurfer license
+### Apptainer (no root required — use this on a shared or HPC server)
 
-1- To run with CUDA GPU support, useful for HD-BET, and FastSurfer on GPU
-docker run --gpus all -it --rm -v /path/to/freesurfer/license.txt:/usr/local/freesurfer/license.txt -v $(pwd)/app:/data kul_vbg_mint KUL_VBG.sh -S PAT -b -l /app/lesion.nii.gz -z T1 -B 1 -P 3 -n 50 -v
+```bash
+apptainer run --nv \
+    -B /path/to/license.txt:/licence/license.txt \
+    -B "$PWD":/data \
+    KUL_VBG_2.0.sif \
+    KUL_VBG.sh -S PAT001 -a /data/sub-PAT001_T1w.nii.gz \
+               -l /data/lesion.nii.gz -z T1 \
+               -o /data/VBG_out -B 1 -P 1 -n 8 -v
+```
 
-1- To run without CUDA GPU support
-docker run -it --rm -v /path/to/freesurfer/license.txt:/usr/local/freesurfer/license.txt -v $(pwd)/app:/data kul_vbg_mint KUL_VBG.sh -S PAT -b -l /app/lesion.nii.gz -z T1 -B 1 -P 3 -n 50 -v
+### Docker
+
+```bash
+docker run --gpus all --rm -it \
+    -v /path/to/license.txt:/licence/license.txt:ro \
+    -v "$PWD":/data \
+    kul_vbg:2.0 \
+    KUL_VBG.sh -S PAT001 -a /data/sub-PAT001_T1w.nii.gz \
+               -l /data/lesion.nii.gz -z T1 \
+               -o /data/VBG_out -B 1 -P 1 -n 8 -v
+```
+
+Drop `--nv` / `--gpus all` if there is no GPU — everything still works, and only
+FastSurfer (`-P 2`/`-P 3`) is slower.
+
+Note that all paths passed to `KUL_VBG.sh` must be paths **inside** the
+container (`/data/...`), not host paths.
+
+### Building the images
+
+```bash
+cd Docker
+./build.sh --sif     # builds the Docker image, then converts it to a .sif
+```
+
+The resulting `.sif` is a single self-contained file: copy it to the server and
+run it there, no root and no installation required.
 
 

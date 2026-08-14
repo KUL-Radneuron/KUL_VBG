@@ -1,0 +1,128 @@
+###############################################################################
+# KUL_VBG 2.0 — Apptainer definition
+#
+# This is a THIN WRAPPER over the Docker image, not a second recipe. The
+# Dockerfile in this directory is the single source of truth for what gets
+# installed; this file only adds Apptainer-native metadata (help text, labels,
+# an explicit runscript) on top of it. Keeping one build recipe avoids the
+# classic failure mode where a Docker image and a .def file drift apart and
+# start producing subtly different results.
+#
+# ---------------------------------------------------------------------------
+# You usually do NOT need this file
+# ---------------------------------------------------------------------------
+# Apptainer converts a Docker image to a SIF directly, carrying over ENV and
+# ENTRYPOINT, so the plain conversion is enough for almost everyone:
+#
+#     apptainer build KUL_VBG_2.0.sif docker-daemon://kul_vbg:2.0
+#
+# Use this .def only if you want `apptainer run-help` to print usage, or want
+# the SIF labelled with its provenance.
+#
+# ---------------------------------------------------------------------------
+# Building
+# ---------------------------------------------------------------------------
+# Def-file builds run %post/%labels through a build sandbox, so they need
+# --fakeroot (or root). On a machine where you have neither, use the plain
+# conversion above instead — it needs no privileges at all.
+#
+#     apptainer build --fakeroot KUL_VBG_2.0.sif KUL_VBG.def
+#
+# ---------------------------------------------------------------------------
+# Bootstrap source
+# ---------------------------------------------------------------------------
+# docker-daemon pulls from the local Docker daemon, i.e. the image you just
+# built with build.sh. Two alternatives, depending on where you are building:
+#
+#   * From a registry (needs outbound network):
+#         Bootstrap: docker
+#         From: radwankul/kul_vbg:2.0
+#
+#   * From a tarball, for an air-gapped machine
+#     (`docker save kul_vbg:2.0 -o kul_vbg_2.0.tar` on the machine that has it):
+#         Bootstrap: docker-archive
+#         From: kul_vbg_2.0.tar
+###############################################################################
+
+Bootstrap: docker-daemon
+From: kul_vbg:2.0
+
+%labels
+    Maintainer      radwanphd@gmail.com
+    Software        KUL_VBG
+    Version         2.0
+    Description     Virtual Brain Grafting — whole-brain parcellation in the presence of large lesions
+    Source          https://github.com/KUL-Radneuron/KUL_VBG
+    Reference       https://doi.org/10.1016/j.neuroimage.2021.117731
+    License         MPL-2.0
+
+%environment
+    # The Docker image's ENV is inherited automatically by the bootstrap, so
+    # this block is intentionally near-empty. Do NOT re-export FREESURFER_HOME,
+    # FSLDIR, ANTSPATH or PATH here: entrypoint.sh already pins them, and doing
+    # it twice creates two places to keep in sync when a version is bumped.
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%runscript
+    # Hand straight to the same entrypoint the Docker image uses, so `docker
+    # run <img> <cmd>` and `apptainer run <sif> <cmd>` behave identically.
+    exec /entrypoint.sh "$@"
+
+%help
+    KUL_VBG 2.0 — Virtual Brain Grafting
+    ====================================
+
+    Whole-brain parcellation in the presence of large brain lesions: the lesion
+    is excised and replaced with healthy-looking synthetic tissue, so that
+    FreeSurfer/FastSurfer can parcellate a brain they would otherwise fail on.
+
+    Please cite:
+      Radwan AM, Emsell L, Blommaert J, et al. Virtual brain grafting: Enabling
+      whole brain parcellation in the presence of large lesions. NeuroImage
+      2021;229:117731. https://doi.org/10.1016/j.neuroimage.2021.117731
+
+    REQUIRED AT RUN TIME
+    --------------------
+    A FreeSurfer licence. It is NOT included in this image — the licence is
+    per-user and cannot be redistributed. Get one free at
+    https://surfer.nmr.mgh.harvard.edu/registration.html and bind it in:
+
+        -B /path/to/license.txt:/licence/license.txt
+
+    USAGE
+    -----
+    Help:
+        apptainer run -B /path/to/license.txt:/licence/license.txt \
+            KUL_VBG_2.0.sif KUL_VBG.sh -h
+
+    A typical run (data in $PWD, GPU present):
+        apptainer run --nv \
+            -B /path/to/license.txt:/licence/license.txt \
+            -B "$PWD":/data \
+            KUL_VBG_2.0.sif \
+            KUL_VBG.sh -S PAT001 -a /data/sub-PAT001_T1w.nii.gz \
+                       -l /data/lesion.nii.gz -z T1 \
+                       -o /data/VBG_out -B 1 -P 1 -n 8 -v
+
+    Without a GPU, drop --nv. FastSurfer (-P 2/3) then runs on CPU: slower,
+    but correct. -P 1 (recon-all) and -P 4 (SynthSeg) are unaffected.
+
+    An interactive shell inside the container:
+        apptainer shell -B /path/to/license.txt:/licence/license.txt \
+            -B "$PWD":/data KUL_VBG_2.0.sif
+
+    NOTES
+    -----
+      * Bind your data to /data. Paths you pass to KUL_VBG.sh must be the
+        paths as seen INSIDE the container (/data/...), not host paths.
+      * Consider --cleanenv. Apptainer merges the host environment by default;
+        entrypoint.sh already pins the variables that matter, but --cleanenv
+        removes a whole class of surprises on a server where users have their
+        own FSLDIR/FREESURFER_HOME exported.
+      * /tmp must be writable — KUL_VBG works around a FreeSurfer 8.2.0
+        mris_register bug by routing SUBJECTS_DIR through a short symlink
+        there. If your site mounts /tmp read-only, bind over it:
+        -B /scratch/$USER/tmp:/tmp
+      * Contents: FreeSurfer 8.2.0, FSL 6.0.7.23 (subset), ANTs 2.4.4.post20,
+        MRtrix3 (CLI only), FastSurfer, and KUL_VBG 2.0.

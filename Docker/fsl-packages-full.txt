@@ -1,0 +1,138 @@
+# FSL package manifest for `build.sh --fsl full`.
+#
+# This is NOT a hand-picked list: it is the exact set of packages from the FSL
+# conda channel present in the validated bare-metal FSL 6.0.7.23 install that
+# KUL_VBG is developed against, so `--fsl full` reproduces that environment
+# rather than approximating it. (The FSL channel publishes no "fsl"
+# metapackage, so there is nothing simpler to depend on.)
+#
+# Regenerate against a reference install with:
+#   python3 - <<'PY' > fsl-packages-full.txt
+#   import json, glob
+#   names = {json.load(open(f)).get('name') for f in glob.glob('$FSLDIR/conda-meta/*.json')
+#            if 'fslconda' in (json.load(open(f)).get('channel') or '')}
+#   print('\n'.join(sorted(n for n in names if n)))
+#   PY
+#
+# Blank lines and #-comments are ignored by the Dockerfile.
+ciftilib
+elc
+fsl-add_module
+fsl-armawrap
+fsl-asl_mfree
+fsl-avwutils
+fsl-base
+fsl-basil
+fsl-basisfield
+fsl-baycest
+fsl-bet2
+fsl-bianca
+fsl-biancadata
+fsl-bint
+fsl-cluster
+fsl-cprob
+fsl-cudabasisfield
+fsl-data_atlases
+fsl-data_atlases_xtract
+fsl-data_first_models_317_bin
+fsl-data_first_models_336_bin
+fsl-data_linearmni
+fsl-data_omm
+fsl-data_possum
+fsl-data_standard
+fsl-deface
+fsl-denmatsim
+fsl-discreteopt
+fsl-eddy
+fsl-eddy-cuda
+fsl-eddy_qc
+fsl-fabber_core
+fsl-fabber_models_asl
+fsl-fabber_models_cest
+fsl-fabber_models_dce
+fsl-fabber_models_dsc
+fsl-fabber_models_dualecho
+fsl-fabber_models_dwi
+fsl-fabber_models_pet
+fsl-fabber_models_qbold
+fsl-fabber_models_t1
+fsl-fast4
+fsl-fastconfounds
+fsl-fastpdlib
+fsl-fdt
+fsl-fdt-cuda
+fsl-feat5
+fsl-film
+fsl-filmbabe
+fsl-first
+fsl-first_lib
+fsl-flameo
+fsl-flirt
+fsl-fnirt
+fsl-fugue
+fsl-get_standard
+fsl-giftiio
+fsl-gps
+fsl-installer
+fsl-lesions
+fsl-libgdc
+fsl-libmeshutils
+fsl-libvis
+fsl-mcflirt
+fsl-melodic
+fsl-meshclass
+fsl-misc_c
+fsl-misc_scripts
+fsl-misc_tcl
+fsl-miscmaths
+fsl-miscvis
+fsl-mist
+fsl-mm
+fsl-mmorf-cpu
+fsl-mmorf-cuda
+fsl-msm
+fsl-msmreglib
+fsl-mvdisc
+fsl-nets
+fsl-newimage
+fsl-newmesh
+fsl-newnifti
+fsl-newran
+fsl-oxford_asl
+fsl-possum
+fsl-ptx2
+fsl-ptx2-cuda
+fsl-ptx2-streamlines
+fsl-pyfeeds
+fsl-pyfeeds-tests
+fsl-pyfix
+fsl-qboot
+fsl-randomise
+fsl-shapemodel
+fsl-siena
+fsl-slicetimer
+fsl-sub
+fsl-sub-plugin-sge
+fsl-sub-plugin-slurm
+fsl-surface
+fsl-susan
+fsl-swe
+fsl-tbss
+fsl-tirl
+fsl-topup
+fsl-utils
+fsl-vbm
+fsl-verbena
+fsl-vtkio
+fsl-warpfns
+fsl-whim
+fsl-wire
+fsl-xtract
+fsl-xtract_data
+fsl-znzlib
+fsl_mrs
+hlsvdpropy
+nidmresults
+nidmresults-fsl
+openslide-python
+spmic-cudimot

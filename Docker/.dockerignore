@@ -1,0 +1,14 @@
+# Build context for the KUL_VBG image.
+#
+# The image clones KUL_VBG from git at a pinned commit rather than COPYing the
+# working tree, so the only thing this context actually needs to carry is
+# entrypoint.sh. Everything else is excluded to keep `docker build` from
+# uploading the ~180 MB of atlases and test data sitting in the repo.
+#
+# Note: this file only applies when the build context is this Docker/ directory
+# (which is what build.sh does). Building from the repo root would need an
+# equivalent .dockerignore there.
+
+*
+!entrypoint.sh
+!fsl-packages-full.txt

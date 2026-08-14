@@ -1,0 +1,8 @@
+# Build artefacts — never commit these.
+#
+# The SIF in particular is ~15 GB; `git add -A` from the repo root would
+# otherwise happily stage it.
+*.sif
+*.docker.tar
+build_*.log
+.vbg_sifbuild/

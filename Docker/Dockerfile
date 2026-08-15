@@ -79,7 +79,7 @@ ARG TORCH_BACKEND=cu126
 # you can bump the commit to its tip without hunting for the branch name.
 ARG VBG_REPO=https://github.com/KUL-Radneuron/KUL_VBG.git
 ARG VBG_BRANCH=KUL_VBG_2.0
-ARG VBG_COMMIT=145ba69
+ARG VBG_COMMIT=56dc02a
 
 
 ###############################################################################

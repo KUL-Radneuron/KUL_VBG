@@ -35,6 +35,24 @@
 ###############################################################################
 
 ARG UBUNTU_TAG=24.04
+# Pinned by DIGEST, not just tag. `ubuntu:24.04` is a moving tag that Canonical
+# republishes for security updates, and BuildKit re-resolves it against the
+# registry on every build rather than trusting whatever is in the local store.
+# Confirmed live: a rebuild on 2026-09-05 resolved
+# sha256:33ceb719... where the image it was replacing had been built from
+# sha256:561618e2..., and that one difference invalidated EVERY downstream
+# layer -- FSL, ANTs, MRtrix3 and FreeSurfer all rebuilt from source despite a
+# 105 GB warm cache. The wasted hours are the small half of the problem: an
+# unpinned base also means this image is NOT reproducible from this file alone,
+# which the header above explicitly claims it is.
+#
+# The tag is kept next to the digest purely as documentation for a human
+# reading `FROM`; the digest is what actually resolves.
+#
+# To adopt a newer base -- do it deliberately, e.g. for a CVE fix, and expect a
+# full rebuild by design:
+#   docker buildx imagetools inspect ubuntu:24.04 --format '{{.Manifest.Digest}}'
+ARG UBUNTU_DIGEST=sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
 
 ###############################################################################
 # Pinned versions — single source of truth, consumed by the stages below.
@@ -103,7 +121,7 @@ ARG VBG_COMMIT=56dc02a
 # Do not "optimise" this by adding -march=native: that WOULD bake in the build
 # host's ISA and produce SIGILL on an older target.
 ###############################################################################
-FROM ubuntu:${UBUNTU_TAG} AS ants-builder
+FROM ubuntu:${UBUNTU_TAG}@${UBUNTU_DIGEST} AS ants-builder
 ARG ANTS_COMMIT
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -155,7 +173,7 @@ RUN set -eu; for _b in antsRegistration antsApplyTransforms Atropos ImageMath \
 # mrhistmatch, mrthreshold, mrmath, mrfilter, maskfilter), and an image has no
 # display anyway. This removes several GB and a long chunk of build time.
 ###############################################################################
-FROM ubuntu:${UBUNTU_TAG} AS mrtrix-builder
+FROM ubuntu:${UBUNTU_TAG}@${UBUNTU_DIGEST} AS mrtrix-builder
 ARG MRTRIX3_REPO
 ARG MRTRIX3_BRANCH
 ARG MRTRIX3_COMMIT
@@ -222,7 +240,7 @@ RUN set -eu; for _b in mrcalc mrstats labelconvert mrhistmatch mrthreshold \
 # Build with --build-arg FSL_FLAVOUR=full to install the complete distribution
 # instead; nothing else in this file needs to change.
 ###############################################################################
-FROM ubuntu:${UBUNTU_TAG} AS fsl-builder
+FROM ubuntu:${UBUNTU_TAG}@${UBUNTU_DIGEST} AS fsl-builder
 ARG FSL_FLAVOUR
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -267,7 +285,7 @@ RUN set -eu; for _b in fslmaths fslstats fslreorient2std fslswapdim fslorient im
 ###############################################################################
 # Stage 4 — runtime
 ###############################################################################
-FROM ubuntu:${UBUNTU_TAG}
+FROM ubuntu:${UBUNTU_TAG}@${UBUNTU_DIGEST}
 
 LABEL maintainer="radwanphd@gmail.com" \
       org.opencontainers.image.title="KUL_VBG" \

@@ -4,5 +4,5 @@
 # otherwise happily stage it.
 *.sif
 *.docker.tar
-build_*.log
+*_*.log
 .vbg_sifbuild/

@@ -380,13 +380,29 @@ ENV PATH="${FREESURFER_HOME}/bin:${PATH}" \
 # it use the pinned one regardless of what default says.)
 #
 # wget, not curl: this host 403s curl's default user-agent but serves wget fine.
+#
+# `yes | tr -d '\n'` is not decoration — the script prompts per file with
+#     read -p "Update ...? [Yy/Nn]: " -n 1 -r
+# and there is no batch/force flag. Two traps:
+#   * With no stdin (a plain docker build) every read gets EOF, REPLY stays
+#     empty, and the script cheerfully reports "Skipping replacing ..." for all
+#     11 files while still exiting 0. The patch appears to run and does nothing.
+#   * Plain `yes |` is WORSE THAN IT LOOKS: yes emits "y\n", `read -n 1` takes
+#     the "y", then the NEXT read consumes the leftover "\n", which fails the
+#     ^[Yy]$ test. Files then alternate applied/skipped — observed live, 5 of 11
+#     applied and the gems binding among those skipped.
+# Stripping newlines yields an unbroken "yyyy..." stream so every prompt gets a
+# real "y". Verified: 11 applied, 0 skipped, segment_subregions runs.
+#
+# The verification step below is what catches a regression here — it asserts the
+# .so exists AND that segment_subregions actually executes.
 # ---------------------------------------------------------------------------
 ARG FREESURFER_PATCH=patch_data_20260625.tgz
 RUN set -eux; \
     _pd=/tmp/fspatch; mkdir -p "${_pd}"; cd "${_pd}"; \
     wget -q "https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/${FREESURFER_VERSION}/fs820_updates.sh"; \
     chmod +x fs820_updates.sh; \
-    ./fs820_updates.sh "${FREESURFER_PATCH}"; \
+    yes | tr -d '\n' | ./fs820_updates.sh "${FREESURFER_PATCH}"; \
     cd /; rm -rf "${_pd}"
 
 # Confirm the .deb landed where the ENV above says, and that the FS 7.3+ tools
@@ -460,7 +476,17 @@ RUN set -eux; \
     uv venv --python 3.12; \
     uv pip compile --torch-backend "${TORCH_BACKEND}" requirements.txt \
         --python .venv/bin/python \
-    | uv pip sync --torch-backend "${TORCH_BACKEND}" --python .venv/bin/python -
+    | uv pip sync --torch-backend "${TORCH_BACKEND}" --python .venv/bin/python -; \
+    # uv keeps every downloaded wheel under /root/.cache/uv — ~5.8 GB here,
+    # dominated by torch and the nvidia-* CUDA runtime packages. The .venv
+    # already holds the installed copies, so the cache is pure dead weight in
+    # every layer below this one. Must be cleaned in THIS RUN: a later
+    # `rm -rf` would only mask it, leaving the bytes in this layer and in the
+    # SIF. FastSurfer's own .git is deliberately KEPT (94 MB) — version.py
+    # probes for it to report the checkout version, and there is no VERSION
+    # file fallback, so dropping it would leave provenance unknown.
+    uv cache clean; \
+    rm -rf /root/.cache/uv
 
 # Wrapper shim: run_fastsurfer.sh calls plain python3 and never activates its
 # own venv, and KUL_VBG.sh invokes it by bare name via PATH (`which

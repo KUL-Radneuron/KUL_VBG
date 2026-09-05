@@ -19,6 +19,31 @@ set -euo pipefail
 _die() { echo "ERROR: $*" >&2; exit 1; }
 
 ###############################################################################
+# 0. Does this invocation actually need a licence?
+#
+# Reading the help text, checking a version, or opening a shell to look around
+# does no processing and must not require a FreeSurfer licence. Demanding one
+# just to run `-h` is a bad first impression and makes the image impossible to
+# explore before committing to registration.
+#
+# Deliberately NOT treated as help: `-v`. In KUL_VBG.sh that means *verbose*,
+# not version, so matching it here would skip the licence check on real runs.
+###############################################################################
+_needs_licence=1
+if [[ $# -eq 0 ]]; then
+    _needs_licence=0
+else
+    case "$1" in
+        bash|sh|/bin/bash|/bin/sh) _needs_licence=0 ;;
+    esac
+    for _a in "$@"; do
+        case "${_a}" in
+            -h|--help|--version) _needs_licence=0 ;;
+        esac
+    done
+fi
+
+###############################################################################
 # 1. FreeSurfer licence
 #
 # Not baked into the image on purpose — FreeSurfer's licence is per-user and
@@ -48,7 +73,11 @@ do
     fi
 done
 
-if [[ -z "${_lic}" ]]; then
+if [[ -z "${_lic}" && ${_needs_licence} -eq 0 ]]; then
+    echo "INFO: no FreeSurfer licence bound — fine for help/shell, required for any real run." >&2
+fi
+
+if [[ -z "${_lic}" && ${_needs_licence} -eq 1 ]]; then
     cat >&2 <<'EOF'
 ERROR: no FreeSurfer licence found.
 
@@ -73,7 +102,9 @@ EOF
     exit 2
 fi
 
-export FS_LICENSE="${_lic}"
+# Only export when actually found — exporting an empty FS_LICENSE would make
+# FreeSurfer look for a file called "" rather than fall back to its own search.
+[[ -n "${_lic}" ]] && export FS_LICENSE="${_lic}"
 
 ###############################################################################
 # 2. Environment

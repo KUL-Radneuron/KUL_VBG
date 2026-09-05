@@ -7,4 +7,4 @@ __pycache__/
 # so a `git add -A` from the repo root can never stage a ~15 GB SIF.
 *.sif
 *.docker.tar
-Docker/build_*.log
+Docker/*.log

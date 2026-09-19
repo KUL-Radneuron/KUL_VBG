@@ -1,5 +1,129 @@
 # Changelog
 
+## Unreleased (working tree, 2026-09-19 — no image-math command runs outside `task_exec`)
+
+Found while testing v2.0 on a clinical unilateral case: the prep log showed
+`Error: no output filename specified!`, followed by an `fslmaths` core dump
+("Image Exception #63 :: No image files match ..._donor_bzone_unsharp"), and yet
+the step reported `Success` and the pipeline ran to completion with a correct
+output. Three separate problems met in one construct.
+
+Task 2.7 (sharpen the eroded donor core) built its `task_in` as
+
+```
+task_in="fslmaths <sharp> -mas <core> \
+-add $(fslmaths <scaled> -mas <bzone> -odt float 2>>${prep_log}; \
+echo ..._donor_bzone_unsharp.nii.gz) ..._donor_T1_native_S.nii.gz 2>>${prep_log} || \
+(fslmaths <scaled> -mas <bzone> ..._donor_bzone_unsharp.nii.gz && fslmaths ...)"
+```
+
+- The inner `fslmaths` had **no output filename** — `-odt float` was the last
+  argument. That is the `no output filename specified!` line. The `echo` supplied
+  the filename to the outer command regardless of whether the file was written,
+  so nothing noticed.
+- A `$( … )` inside the `task_in` string runs at **assignment** time, i.e. before
+  `task_exec` echoes the command and before it times the step. Its errors landed
+  in the log above the command that appeared to cause them, which is why the
+  message read as coming from the wrong step.
+- The `|| ( … )` fallback then rebuilt the file correctly and returned 0, so
+  `task_exec` logged `Success`. A genuine failure of the primary command would
+  have been reported the same way. Output was right; the log was not trustworthy.
+
+Fixed by splitting each such construct into ordinary consecutive `task_exec`
+steps, and dropping the `||` fallbacks — they duplicated the primary command and
+only existed to paper over the missing filename. Every image-math command is now
+echoed, timed and status-checked individually.
+
+### KUL_VBG.sh
+- Task 2.7 (sharpened donor), Task 2.7b (`-H` hybrid donor) and Task 2.5
+  (feathered splice): boundary-zone / outside-lesion masking is now its own
+  `task_exec` step instead of a `$( … )` inside the next command. Only Task 2.7
+  was actually broken; the other two worked but ran unlogged.
+- Template stitch and bilateral initial fill: the patient mean (outside lesion,
+  `mrstats`) and template mean (`fslstats`) were computed in backticks inside the
+  `task_in` string — unlogged, unchecked, and on failure silently passed an empty
+  string to `fslmaths -div`, which would have produced a nonsense scale factor.
+  Now hoisted into `pat_mean_minL` / `temp_mean`, echoed to the log, and the run
+  aborts if either is empty or the divisor is zero. Computed separately in the
+  unilateral and bilateral branches, since they are different code paths.
+- Logged four more computed values that fed `fslmaths`/`mrcalc` divisors without
+  ever appearing in the log: `med_nat`/`med_tmp` (template scaling medians),
+  `MNI2_inT1_sc_mean`, and `T1b_inMNI1p_mean` (both branches).
+- `CSF_nmean`: nested backticks inside `$( … )` replaced with nested `$( … )`.
+
+### KUL_synth_pats_4VBG.sh
+Intensity-matching step: the two `mrstats` means are hoisted into `pt_mean` /
+`hv_mean` and echoed before the `mrcalc` step, instead of running in backticks
+while the command string was built.
+
+### KUL_VBG_cook_template.sh
+Template stitch: the right-hemisphere `mrcalc` that was run in backticks (using
+MRtrix's `-` pipe, so the substitution yielded a temporary filename) is now an
+explicit `task_exec` step writing `ARZ_T1_brain_Rhemi.nii.gz`, which is then
+added to the left hemisphere. The arithmetic is unchanged.
+
+Left as-is deliberately: `$(basename ${FS_lic})` in the two FastSurfer
+`docker run` commands, `$((ts+1))` arithmetic, `basename`/`dirname` in usage
+text — none of these run image-processing tools. The parallel tissue-prior warp
+block still runs `antsApplyTransforms` outside `task_exec` by design; it already
+logs each call and checks every PID (2026-07-10 pass).
+
+## Unreleased (committed 2026-09-05 — container reproducibility and build correctness)
+
+Retroactive entries: these four commits shipped without a CHANGELOG entry.
+
+### Docker/Dockerfile — pin the ubuntu base by digest, not just tag (`cc59f1d`)
+`ubuntu:24.04` is a moving tag that Canonical republishes for security updates,
+and BuildKit re-resolves it against the registry on every build rather than
+trusting the local store. Confirmed live: the 2026-09-05 rebuild resolved
+`sha256:33ceb719` where the image it replaced had been built from
+`sha256:561618e2`, and that one difference invalidated every downstream layer —
+FSL, ANTs, MRtrix3 and FreeSurfer all rebuilt from source despite a 105 GB warm
+cache. The bigger problem was reproducibility: the file's own header claims the
+image is reproducible from the Dockerfile alone, which a floating base made
+untrue. All four stages now resolve `ubuntu:${UBUNTU_TAG}@${UBUNTU_DIGEST}`; the
+tag is kept beside the digest as documentation for a human reading `FROM`.
+Verified that the pinned digest's base layer is byte-identical to the one in the
+shipping `kul_vbg:2.0`. Bumping it is deliberate and invalidates the cache by
+design.
+
+### Docker/Dockerfile — the FreeSurfer patch step silently skipped (`5ba2ac7`)
+`fs820_updates.sh` prompts per file with `read -p … -n 1 -r` and has no batch or
+force flag. With no stdin (a plain `docker build`) every read gets EOF, all 11
+files are skipped, and the script still exits 0 — the patch appears to run and
+does nothing. Piping plain `yes` is worse: `read -n 1` takes the `y`, the next
+read consumes the leftover newline and fails the `^[Yy]$` test, so files
+alternate applied/skipped. Observed live at 5 of 11 applied, with the samseg gems
+binding among the skipped ones — which is what left `segment_subregions` unable
+to run and the `-M` block silently producing no hippocampal, amygdala, thalamic
+or brainstem segmentations (the failure diagnosed in the 2026-08-14 entry below).
+`yes | tr -d '\n'` gives an unbroken `yyyy…` stream: 11 of 11 applied. Without
+this, a fresh clone cannot build a working image at all. The verification step
+now also *runs* `segment_subregions --help`, so a regression fails the build.
+
+Same commit:
+- Dropped ~5.8 GB of `uv` cache (mostly torch and the `nvidia-*` CUDA runtime
+  packages) in the same `RUN` that creates it — a later `rm` would leave the
+  bytes in the layer and in the SIF. FastSurfer's own `.git` is deliberately kept
+  (94 MB): `version.py` probes it to report the checkout version and has no
+  VERSION file fallback.
+- `entrypoint.sh`: reading help, checking a version or opening a shell no longer
+  demands a FreeSurfer licence — requiring one to run `-h` made the image
+  impossible to explore before registering. `-v` is deliberately *not* treated as
+  help: in `KUL_VBG.sh` it means verbose, so matching it would skip the licence
+  check on real runs. `FS_LICENSE` is exported only when a licence was found,
+  since an empty value makes FreeSurfer look for a file named `""` instead of
+  falling back to its own search.
+- `.gitignore`: `build_*.log` widened to `*.log` so `rebuild_*.log` is covered.
+
+### Docker/Dockerfile — `VBG_COMMIT` bumped to `56dc02a` (`76a70b1`)
+Points the container build at the then-current `KUL_VBG_2.0` tip.
+
+### README.md — reformatted for readability (`70eb1ce`)
+Tables, code fences and section structure. Pure formatting: all 16 documented
+flags and every version/tool string verified still present, no technical content
+changed.
+
 ## Unreleased (working tree, 2026-08-14 — containerisation rebuilt for v2.0: Docker + Apptainer)
 
 The v1.x `Docker/KUL_VBG_Dockerfile` could not produce a working VBG 2.0 image —

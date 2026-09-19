@@ -973,6 +973,9 @@ Lmask_in_T1_bin="${str_pp}_L_mask_in_T1_bin.nii.gz"
 
 Lmask_in_T1_binv="${str_pp}_L_mask_in_T1_binv.nii.gz"
 
+# binarised input lesion mask in native patient space — used for the -O overlap reports
+Lmask_nat_bin="${str_pp}_Lmask_nat_bin.nii.gz"
+
 Lmask_bin_s3="${str_pp}_Lmask_in_T1_bins3.nii.gz"
 
 # TASK 2.3: new variables — boundary ring and eroded core used by Tasks 2.4–2.9
@@ -1340,11 +1343,14 @@ function KUL_antsReg_SyNonly {
 }
 
 # Lesion overlap report — called after each parcellation when -O is set.
-# Resamples MGZ parcellations to native T1 space before computing overlap.
+# MGZ parcellations are converted to NIfTI; KUL_lesion_overlap.py then resamples the
+# lesion mask onto the parcellation grid by world coordinates, so both inputs must be
+# in native patient space. Do not pass Lmask_in_T1_bin here: in the intra-axial path it
+# is the smoothed mask in template-affine space and lands ~1.5 cm off in native space.
 
 function KUL_lesion_overlap_report {
-    # $1  parcellation file (NIfTI or MGZ, must be in FS conformed space)
-    # $2  binary lesion mask (NIfTI, FS conformed space)
+    # $1  parcellation file (NIfTI or MGZ, native patient space)
+    # $2  binary lesion mask (NIfTI, native patient space — use Lmask_nat_bin)
     # $3  output report path (.txt)
     # $4  atlas name (printed in report header)
     # $5  LUT file path
@@ -1355,6 +1361,11 @@ function KUL_lesion_overlap_report {
     if [[ ! -f "${_parc}" ]]; then
         echo " [-O] ${_name} parcellation not found, skipping overlap report" | tee -a ${prep_log}
         return 1
+    fi
+
+    if [[ "${_lesion}" == "${Lmask_nat_bin}" ]] && [[ ! -f "${Lmask_nat_bin}" ]]; then
+        task_in="fslmaths ${Lmask_o} -bin ${Lmask_nat_bin}"
+        task_exec
     fi
 
     if [[ "${_parc}" == *.mgz ]]; then
@@ -1685,6 +1696,8 @@ function KUL_Lmask_part2 {
 
     med_nat=$(mrstats -quiet -nthreads ${ncpu} -output median -ignorezero -mask ${brain_mask_minL_inMNI2} ${T1_brain_inMNI1})
 
+    echo " Template scaling medians: native=${med_nat} , template=${med_tmp}" | tee -a ${prep_log}
+
     task_in="mrcalc -force -nthreads ${ncpu} ${med_nat} ${med_tmp} -divide ${MNI2_in_T1} -mult - | mrhistmatch linear - ${T1_brain_inMNI1} ${MNI2_in_T1_scaled} -force \
     -nthreads ${ncpu} -mask_target ${brain_mask_minL_inMNI2} -mask_input ${MNI_brain_mask}"
 
@@ -1693,6 +1706,8 @@ function KUL_Lmask_part2 {
     # first we get the mean and normalized MNI2_inT1 after the scaling process done above
 
     MNI2_inT1_sc_mean=$(fslstats ${MNI2_in_T1_scaled} -M)
+
+    echo " Scaled template mean (normalization divisor): ${MNI2_inT1_sc_mean}" | tee -a ${prep_log}
 
     task_in="fslmaths ${MNI2_in_T1_scaled} -div ${MNI2_inT1_sc_mean} ${MNI2_in_T1_linsc_norm}"
 
@@ -1710,6 +1725,8 @@ function KUL_Lmask_part2 {
     task_exec
 
     T1b_inMNI1p_mean=$(fslstats ${T1b_inMNI1_punched} -M)
+
+    echo " Punched T1 mean (normalization divisor): ${T1b_inMNI1p_mean}" | tee -a ${prep_log}
 
     task_in="fslmaths ${T1b_inMNI1_punched} -div ${T1b_inMNI1p_mean} ${T1b_inMNI1_p_norm}"
 
@@ -1881,7 +1898,7 @@ function KUL_Lmask_part2 {
 
     fi
 
-    CSF_nmean=$(mrcalc `mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}` 0.01 -mult -force -quiet)
+    CSF_nmean=$(mrcalc $(mrstats -ignorezero -output mean -quiet -force ${nMNI2_inT1_ntiss_sc2T1MNI1[3]}) 0.01 -mult -force -quiet)
 
     echo " Normalized CSF tissue will be scaled to a mean of ${CSF_nmean} " | tee -a ${prep_log}
 
@@ -2019,8 +2036,17 @@ function KUL_Lmask_part2 {
 
         task_exec
 
-        task_in="fslmaths ${T1_brain_inMNI2} -div `mrstats -force -nthreads ${ncpu} -quiet -mask ${Lmask_binv_inMNI1_dilx2} -ignorezero -output mean ${T1_brain_inMNI2} ` \
-        -mul `fslstats ${tmp_s2T1_CSFGMCBWM} -M ` -mas ${L_hemi_mask_binv} -add ${Temp_L_hemi} ${stitched_T1_temp}"
+        # intensity scaling factors for the template stitch
+        pat_mean_minL=$(mrstats -force -nthreads ${ncpu} -quiet -mask ${Lmask_binv_inMNI1_dilx2} -ignorezero -output mean ${T1_brain_inMNI2})
+        temp_mean=$(fslstats ${tmp_s2T1_CSFGMCBWM} -M)
+        echo " Template stitch scaling: patient mean (outside lesion)=${pat_mean_minL} , template mean=${temp_mean}" | tee -a ${prep_log}
+        if [[ -z "${pat_mean_minL}" || -z "${temp_mean}" ]] || (( $(echo "${pat_mean_minL} == 0" | bc -l) )); then
+            echo " Fail: could not compute template stitch scaling factors" | tee -a ${prep_log}
+            exit 1
+        fi
+
+        task_in="fslmaths ${T1_brain_inMNI2} -div ${pat_mean_minL} \
+        -mul ${temp_mean} -mas ${L_hemi_mask_binv} -add ${Temp_L_hemi} ${stitched_T1_temp}"
 
         task_exec
 
@@ -2073,8 +2099,16 @@ function KUL_Lmask_part2 {
 
         # Generate initial filled image
 
-        task_in="fslmaths ${T1_brain_inMNI2} -div `mrstats -force -nthreads ${ncpu} -quiet -mask ${Lmask_binv_inMNI1_dilx2} -ignorezero -output mean ${T1_brain_inMNI2} ` \
-        -mul `fslstats ${tmp_s2T1_CSFGMCBWM} -M ` -mul ${Lmask_binv_inMNI2_s3} -add ${Temp_bil_Lmask_fill1} ${Temp_T1_bilfilled1}"
+        pat_mean_minL=$(mrstats -force -nthreads ${ncpu} -quiet -mask ${Lmask_binv_inMNI1_dilx2} -ignorezero -output mean ${T1_brain_inMNI2})
+        temp_mean=$(fslstats ${tmp_s2T1_CSFGMCBWM} -M)
+        echo " Bilateral fill scaling: patient mean (outside lesion)=${pat_mean_minL} , template mean=${temp_mean}" | tee -a ${prep_log}
+        if [[ -z "${pat_mean_minL}" || -z "${temp_mean}" ]] || (( $(echo "${pat_mean_minL} == 0" | bc -l) )); then
+            echo " Fail: could not compute bilateral fill scaling factors" | tee -a ${prep_log}
+            exit 1
+        fi
+
+        task_in="fslmaths ${T1_brain_inMNI2} -div ${pat_mean_minL} \
+        -mul ${temp_mean} -mul ${Lmask_binv_inMNI2_s3} -add ${Temp_bil_Lmask_fill1} ${Temp_T1_bilfilled1}"
 
         task_exec
 
@@ -2621,6 +2655,8 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         T1b_inMNI1p_mean=$(fslstats ${T1b_inMNI1_punched} -M)
 
+        echo " Punched T1 mean (normalization divisor): ${T1b_inMNI1p_mean}" | tee -a ${prep_log}
+
         L_ovLt_2_total=$(echo ${overlap_left}*100/${Lmask_tot_v} | bc)
 
         L_ovRt_2_total=$(echo ${overlap_right}*100/${Lmask_tot_v} | bc)
@@ -2849,13 +2885,13 @@ if [[ "${E_flag}" -eq 0 ]]; then
 
         task_exec
 
+        task_in="fslmaths ${str_pp}_donor_local_scaled.nii.gz -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
+        ${str_pp}_donor_bzone_unsharp.nii.gz"
+
+        task_exec
+
         task_in="fslmaths ${str_pp}_donor_sharp_full.nii.gz -mas ${Lmask_bin_core} \
-        -add $(fslmaths ${str_pp}_donor_local_scaled.nii.gz -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
-        -odt float 2>>${prep_log}; echo ${str_pp}_donor_bzone_unsharp.nii.gz) \
-        ${str_pp}_donor_T1_native_S.nii.gz 2>>${prep_log} || \
-        (fslmaths ${str_pp}_donor_local_scaled.nii.gz -mas ${str_pp}_Lmask_boundary_zone.nii.gz ${str_pp}_donor_bzone_unsharp.nii.gz && \
-        fslmaths ${str_pp}_donor_sharp_full.nii.gz -mas ${Lmask_bin_core} \
-        -add ${str_pp}_donor_bzone_unsharp.nii.gz ${str_pp}_donor_T1_native_S.nii.gz)"
+        -add ${str_pp}_donor_bzone_unsharp.nii.gz ${str_pp}_donor_T1_native_S.nii.gz"
 
         task_exec
 
@@ -2868,15 +2904,11 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # Task 2.7 sharpening — no new masks needed.
         if [[ ${H_flag} -eq 1 ]]; then
             echo " [-H] Building hybrid donor: stitched core + InverseWarp boundary zone" | tee -a ${prep_log}
+            task_in="fslmaths ${T1_filled_bk2nat1} -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
+                ${str_pp}_initial_fill_bzone.nii.gz"
+            task_exec
             task_in="fslmaths ${str_pp}_donor_T1_native_S.nii.gz -mas ${Lmask_bin_core} \
-            -add $(fslmaths ${T1_filled_bk2nat1} -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
-                ${str_pp}_initial_fill_bzone.nii.gz 2>>${prep_log}; \
-                echo ${str_pp}_initial_fill_bzone.nii.gz) \
-            ${str_pp}_donor_hybrid.nii.gz 2>>${prep_log} || \
-            (fslmaths ${T1_filled_bk2nat1} -mas ${str_pp}_Lmask_boundary_zone.nii.gz \
-                ${str_pp}_initial_fill_bzone.nii.gz && \
-            fslmaths ${str_pp}_donor_T1_native_S.nii.gz -mas ${Lmask_bin_core} \
-                -add ${str_pp}_initial_fill_bzone.nii.gz ${str_pp}_donor_hybrid.nii.gz)"
+                -add ${str_pp}_initial_fill_bzone.nii.gz ${str_pp}_donor_hybrid.nii.gz"
             task_exec
             donor_for_splice="${str_pp}_donor_hybrid.nii.gz"
         else
@@ -2886,10 +2918,12 @@ if [[ "${E_flag}" -eq 0 ]]; then
         # TASK 2.5: feathered splice using calibrated + sharpened donor (or hybrid if -H).
         # Lmask_bin_s3 is already feathered (dilM×2 + Gaussian σ2, thr 0.1).
         # result = donor × Lmask_bin_s3 + T1_clean × Lmask_binv_s3
+        task_in="fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} ${str_pp}_native_outside.nii.gz"
+
+        task_exec
+
         task_in="fslmaths ${donor_for_splice} -mul ${Lmask_bin_s3} \
-        -add $(fslmaths ${T1_brain_clean} -mul ${Lmask_binv_s3} \
-            ${str_pp}_native_outside.nii.gz 2>>${prep_log}; \
-            echo ${str_pp}_native_outside.nii.gz) \
+        -add ${str_pp}_native_outside.nii.gz \
         -thr 0.01 ${T1_nat_filled_out_1}"
 
         task_exec
@@ -3457,7 +3491,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             _ovl_lut="${function_path}/share/luts/synthseg_lut.txt"
             if [[ -f "${_ovl_lut}" ]]; then
                 KUL_lesion_overlap_report \
-                    "${synthseg_parc}" "${Lmask_in_T1_bin}" \
+                    "${synthseg_parc}" "${Lmask_nat_bin}" \
                     "${str_op}_synthseg_lesion_overlap.txt" "SynthSeg" "${_ovl_lut}" "${_lesion_html}"
             else
                 echo " [-O] SynthSeg LUT not found (${_ovl_lut}), skipping overlap report" | tee -a ${prep_log}
@@ -3740,7 +3774,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
     fi
 
     KUL_lesion_overlap_report \
-        "${fs_lobes_nii}" "${Lmask_in_T1_bin}" \
+        "${fs_lobes_nii}" "${Lmask_nat_bin}" \
         "${str_op}_lobes_lesion_overlap.txt" \
         "LobesStrict" "${function_path}/share/luts/lobes_lut.txt" "${_lesion_html}"
 
@@ -3751,7 +3785,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
         _ovl_lut="${FREESURFER_HOME}/FreeSurferColorLUT.txt"
         if [[ -f "${_ovl_lut}" ]]; then
             KUL_lesion_overlap_report \
-                "${fs_parc_nii}" "${Lmask_in_T1_bin}" \
+                "${fs_parc_nii}" "${Lmask_nat_bin}" \
                 "${str_op}_aparc_lesion_overlap.txt" "aparc+aseg" "${_ovl_lut}" "${_lesion_html}"
         else
             echo " [-O] FreeSurferColorLUT.txt not found, skipping aparc overlap report" | tee -a ${prep_log}
@@ -3867,7 +3901,7 @@ if [[ "${M_flag}" -eq 1 ]]; then
                 if [[ -f "${_ovl_lut}" ]]; then
                     KUL_lesion_overlap_report \
                         "${fs_output}/${subj}/mri/lausanne2018.scale${_scale}+aseg.mgz" \
-                        "${Lmask_in_T1_bin}" \
+                        "${Lmask_nat_bin}" \
                         "${str_op}_lausanne_scale${_scale}_lesion_overlap.txt" \
                         "Lausanne2018_scale${_scale}" "${_ovl_lut}" "${_lesion_html}"
                 else
@@ -3907,7 +3941,7 @@ if [[ "${M_flag}" -eq 1 ]]; then
             if [[ -f "${_ovl_lut}" ]]; then
                 KUL_lesion_overlap_report \
                     "${fs_output}/${subj}/mri/HCPMMP1+aseg.mgz" \
-                    "${Lmask_in_T1_bin}" \
+                    "${Lmask_nat_bin}" \
                     "${str_op}_glasser_lesion_overlap.txt" "Glasser_HCP-MMP1" "${_ovl_lut}" "${_lesion_html}"
             else
                 echo " [-O] Glasser LUT not found, skipping overlap report" | tee -a ${prep_log}
@@ -3996,38 +4030,38 @@ if [[ "${M_flag}" -eq 1 ]]; then
                 _mgz="${fs_output}/${subj}/mri/lausanne2018.scale${_scale}+aseg.mgz"
                 _ovl_lut="${function_path}/share/luts/lausanne_scale${_scale}_lut.txt"
                 [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                    "${_mgz}" "${Lmask_in_T1_bin}" \
+                    "${_mgz}" "${Lmask_nat_bin}" \
                     "${str_op}_lausanne_scale${_scale}_lesion_overlap.txt" \
                     "Lausanne2018_scale${_scale}" "${_ovl_lut}" "${_lesion_html}"
             done
             _mgz="${fs_output}/${subj}/mri/HCPMMP1+aseg.mgz"
             _ovl_lut="${function_path}/share/luts/glasser_lut.txt"
             [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                "${_mgz}" "${Lmask_in_T1_bin}" \
+                "${_mgz}" "${Lmask_nat_bin}" \
                 "${str_op}_glasser_lesion_overlap.txt" "Glasser_HCP-MMP1" "${_ovl_lut}" "${_lesion_html}"
             _mgz="${fs_output}/${subj}/mri/ThalamicNuclei.FSvoxelSpace.mgz"
             _ovl_lut="${function_path}/share/luts/thalamic_nuclei_lut.txt"
             [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                "${_mgz}" "${Lmask_in_T1_bin}" \
+                "${_mgz}" "${Lmask_nat_bin}" \
                 "${str_op}_thalamic_nuclei_lesion_overlap.txt" "ThalamicNuclei" "${_ovl_lut}" "${_lesion_html}"
             _mgz="${fs_output}/${subj}/mri/brainstemSsLabels.FSvoxelSpace.mgz"
             _ovl_lut="${function_path}/share/luts/brainstem_lut.txt"
             [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                "${_mgz}" "${Lmask_in_T1_bin}" \
+                "${_mgz}" "${Lmask_nat_bin}" \
                 "${str_op}_brainstem_lesion_overlap.txt" "BrainstemSubstructures" "${_ovl_lut}" "${_lesion_html}"
             _ovl_lut="${function_path}/share/luts/hippo_amygdala_lut.txt"
             _mgz="${fs_output}/${subj}/mri/lh.hippoAmygLabels.FSvoxelSpace.mgz"
             [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                "${_mgz}" "${Lmask_in_T1_bin}" \
+                "${_mgz}" "${Lmask_nat_bin}" \
                 "${str_op}_lh_hippo_amyg_lesion_overlap.txt" "HippoAmyg-LH" "${_ovl_lut}" "${_lesion_html}"
             _mgz="${fs_output}/${subj}/mri/rh.hippoAmygLabels.FSvoxelSpace.mgz"
             [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                "${_mgz}" "${Lmask_in_T1_bin}" \
+                "${_mgz}" "${Lmask_nat_bin}" \
                 "${str_op}_rh_hippo_amyg_lesion_overlap.txt" "HippoAmyg-RH" "${_ovl_lut}" "${_lesion_html}"
             _mgz="${fs_output}/${subj}/mri/hypothalamic_subunits.v1.mgz"
             _ovl_lut="${function_path}/share/luts/hypothalamic_subunits_lut.txt"
             [[ -f "${_mgz}" ]] && [[ -f "${_ovl_lut}" ]] && KUL_lesion_overlap_report \
-                "${_mgz}" "${Lmask_in_T1_bin}" \
+                "${_mgz}" "${Lmask_nat_bin}" \
                 "${str_op}_hypothalamic_subunits_lesion_overlap.txt" "HypothalamicSubunits" "${_ovl_lut}" "${_lesion_html}"
             echo " [-O] HTML report → ${_lesion_html}" | tee -a ${prep_log}
         fi

@@ -685,9 +685,12 @@ for i in ${!HVs[@]}; do
 
                     sleep 5
 
+                    pt_mean=$(mrstats -force -quiet -ignorezero -mask ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst_inv_BM.nii.gz -output mean ${PT_intd[$p]}/sub-${PTs[$p]}_rT1w_brain.nii.gz)
+                    hv_mean=$(mrstats -force -quiet -ignorezero -mask ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -output mean ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_InverseWarped.nii.gz)
+                    echo " Intensity match: PT mean=${pt_mean} , HV mean=${hv_mean}" | tee -a ${prep_log}
+
                     task_in="mrcalc -force -quiet -nthreads ${ncpu} ${PT_intd[$p]}/sub-${PTs[$p]}_rT1w_brain.nii.gz \
-                    ` mrstats -force -quiet -ignorezero -mask ${PT_intd[$p]}/sub-${PTs[$p]}_LM_dst_inv_BM.nii.gz -output mean ${PT_intd[$p]}/sub-${PTs[$p]}_rT1w_brain.nii.gz ` -div  \
-                    ` mrstats -force -quiet -ignorezero -mask ${PTinHV_int[$p]}/sub-${HVs[$i]}_T1w_in_${PTs[$p]}_brain_mask.nii.gz -output mean ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_InverseWarped.nii.gz ` \
+                    ${pt_mean} -div ${hv_mean} \
                     -mult ${PTinHV_int[$p]}/sub-${PTs[$p]}_2${HVs[$i]}_intmatched.nii.gz"
 
                     task_exec

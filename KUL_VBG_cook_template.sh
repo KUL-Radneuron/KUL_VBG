@@ -265,7 +265,11 @@ task_exec
 
 # 5- Mask and stitch healthy hemis to cook template ims
 
-task_in="mrcalc -force -nthreads ${ncpu} ${T1_L_brain_inMNI2_HM2R} ${MNI_lwr} -mult `mrcalc -quiet -force -nthreads ${ncpu} ${T1_R_brain_2MNI2}_sharp_Warped.nii.gz ${MNI_rwr} -mult - ` \
+task_in="mrcalc -quiet -force -nthreads ${ncpu} ${T1_R_brain_2MNI2}_sharp_Warped.nii.gz ${MNI_rwr} -mult ${wkdir}/ARZ_T1_brain_Rhemi.nii.gz"
+
+task_exec
+
+task_in="mrcalc -force -nthreads ${ncpu} ${T1_L_brain_inMNI2_HM2R} ${MNI_lwr} -mult ${wkdir}/ARZ_T1_brain_Rhemi.nii.gz \
 -add ${ARZ_brain} && mrcalc -force -nthreads ${ncpu} ${ARZ_brain} ${MNI_brain_mask} -mult ${MNI_skull_HM} -add ${ARZ_T1}"
 
 task_exec

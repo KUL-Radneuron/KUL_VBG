@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased (2026-09-20 — retroactive entries for the `-O` overlap mask and the container pin)
+
+Two changes that are already committed but were never logged here.
+
+### KUL_VBG.sh — `-O` overlap reports used a lesion mask in the wrong space (`c0051df`)
+The per-atlas overlap reports were passing `Lmask_in_T1_bin`. In the intra-axial
+path that is the *smoothed* mask carrying the template affine, so in native
+patient space it sits roughly 1.5 cm off the actual lesion. Every atlas overlap
+table was therefore attributing lesion volume to the wrong labels — plausible
+numbers, wrong structures, and wrong in the combined HTML report too.
+
+Nothing failed loudly, which is why it survived: `KUL_lesion_overlap.py` compares
+array shapes, resamples the lesion onto the parcellation grid by world
+coordinates, and only warns on stderr. Given a mask whose affine is confidently
+wrong, world-coordinate resampling faithfully reproduces the offset.
+
+Fix: a new `Lmask_nat_bin` (`${str_pp}_Lmask_nat_bin.nii.gz`), binarised from the
+original input mask `Lmask_o` on first use, and all 12 call sites switched to it
+— SynthSeg, FS lobes, FS parcellation, and the MGZ-based atlases. The wrapper's
+header comment now states the requirement and names the mask not to pass, since
+the two variable names differ by one word and the failure is silent.
+
+This landed inside commit `c0051df`, whose message covers only the `task_exec`
+logging work below. The code change was already in the working tree when that
+commit was staged by filename and went in unmentioned; recorded here rather than
+rewriting a pushed commit.
+
+### Docker/Dockerfile — `VBG_COMMIT` bumped to `c0051df` (`3603777`)
+Points the container build at the two fixes above. Required, not cosmetic: the
+Dockerfile clones VBG at the pinned commit and deletes `.git`, so the code is
+frozen at build time and a rebuild without the bump reinstalls the old bugs.
+Verified against the shipping `kul_vbg:2.0`, built from `56dc02a`: its baked
+`KUL_VBG.sh` has zero occurrences of `Lmask_nat_bin` and still carries the
+`-odt float`/`echo` line at 2854. The FreeSurfer 8.2.0 patch and the `uv` cache
+trim from `5ba2ac7` *are* present in that image (`segment_subregions` runs, the
+`cpython-38` gems binding is in place, `/root/.cache/uv` is gone) — the
+2026-08-14 note below claiming otherwise predates the 2026-09-05 rebuild.
+
 ## Unreleased (working tree, 2026-09-19 — no image-math command runs outside `task_exec`)
 
 Found while testing v2.0 on a clinical unilateral case: the prep log showed

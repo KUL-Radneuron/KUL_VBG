@@ -1,5 +1,59 @@
 # Changelog
 
+## Unreleased (2026-09-21 — `mri_aparc2aseg` thread cap: FreeSurfer 8.2.0 races itself at 48 threads)
+
+### `mri_aparc2aseg` intermittently segfaults, taking VBG and everything downstream with it
+
+A collaborator's type-1 run died mid-VBG with
+
+```
+MatrixMultiply(): m1 is null
+ break .../rd521-8.2.0/utils/matrix.cpp:725
+Segmentation fault (core dumped)
+```
+
+on `lausanne2018.scale2`, after `scale1` and recon-all had both completed. The
+damage is not local: `KUL_VBG.sh` exits non-zero, so `KUL_clinical_fmridti.sh`
+correctly refuses to copy possibly-incomplete FreeSurfer output into
+`BIDS/derivatives/freesurfer/`, and every later step that needs `aparc+aseg.mgz`
+— FWT VOI generation first — fails with "Incorrect path to the FS aparc+aseg".
+One racy binary therefore presents as a path error four steps away.
+
+The fault is upstream, in FreeSurfer, not in this pipeline:
+
+- **Reproduced 3 times in 20 runs at 48 threads** on the same subject and the
+  same inputs (one of them a SIGSEGV with core dump, matching the original
+  failure exactly); **0 in 12 at 8 threads**.
+- Not the data: the identical command on the identical files succeeds at lower
+  thread counts, and completes at 48 more often than not.
+- Not the install: `/usr/local/freesurfer/8.2.0/bin/mri_aparc2aseg` is
+  md5-identical across users, and the Lausanne `.annot` atlas files are
+  byte-identical too.
+- Not memory, despite the `malloc` frames in the core dump — `VmHWM` was
+  1.16 GB with zero swap and 75 VMAs on a 251 GB host. Those threads were
+  bystanders allocating normally when another thread killed the process.
+
+Output is also **thread-count dependent**: against the serial result, 48 threads
+differs by 55 voxels, 16 by 13, 8 by 9, 2 by 8, of 1.56 M labelled. Each count is
+internally reproducible, so results silently shift if `-n` changes between sites
+or runs.
+
+Fix: a single `_a2a_threads=$(( ncpu < 8 ? ncpu : 8 ))` next to the
+`OMP_NUM_THREADS` export, passed as `--threads` at all seven `mri_aparc2aseg`
+call sites (lobesStrict, Lausanne scales 1-5, Glasser). `--threads` overrides the
+exported `OMP_NUM_THREADS`, verified by the "128 avail.processors, using 8" line
+in the run log. Cost is about +70 s per call, ~+8 min per VBG run against a
+recon-all that takes ~49 min.
+
+Validated end to end on a full type-1 run: all seven calls reported `using 8` and
+completed, `multiscale_parc.done` was written, and the FreeSurfer output reached
+`BIDS/derivatives/freesurfer/` — the copy that never happened on the failing run.
+
+Note for FreeSurfer 8.2.0 specifically: `recon-all` builds `aparc+aseg` with
+`mri_surf2volseg`, not `mri_aparc2aseg`, so these seven are the only
+`mri_aparc2aseg` invocations in the pipeline and the cap covers all of them.
+Whether `mri_surf2volseg` shares the defect is untested.
+
 ## Unreleased (2026-09-20 — retroactive entries for the `-O` overlap mask and the container pin)
 
 Two changes that are already committed but were never logged here.

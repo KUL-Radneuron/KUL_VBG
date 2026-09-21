@@ -388,6 +388,15 @@ start_t=$(date +%s)
 FSLPARALLEL=$ncpu; export FSLPARALLEL
 OMP_NUM_THREADS=$ncpu; export OMP_NUM_THREADS
 
+# FreeSurfer 8.2.0 mri_aparc2aseg has a threading defect: its OpenMP labeling
+# loop intermittently reads a null matrix and dies with
+#   MatrixMultiply(): m1 is null / break utils/matrix.cpp:725
+# Measured on one clinical subject, lausanne2018.scale2: 3 failures in 20 runs at
+# 48 threads (one a SIGSEGV core dump), 0 in 12 at 8. Output also drifts
+# with thread count (55 voxels vs serial at 48, 9 at 8, of 1.56M labeled).
+# mri_aparc2aseg --threads overrides the exported OMP_NUM_THREADS above.
+_a2a_threads=$(( ncpu < 8 ? ncpu : 8 ))
+
 d=$(date "+%Y-%m-%d_%H-%M-%S");
 
 # handle the dirs
@@ -3717,7 +3726,7 @@ if [[ "${P_flag}" -eq 1 ]] ; then
 
         task_exec
 
-        task_in="mri_aparc2aseg --s ${subj} --sd ${fs_output} --labelwm --hypo-as-wm --rip-unknown --volmask --annot lobesStrict --o ${fs_lobes_mgz}"
+        task_in="mri_aparc2aseg --s ${subj} --sd ${fs_output} --labelwm --hypo-as-wm --rip-unknown --volmask --annot lobesStrict --threads ${_a2a_threads} --o ${fs_lobes_mgz}"
 
         task_exec
 
@@ -3874,6 +3883,7 @@ if [[ "${M_flag}" -eq 1 ]]; then
                 --s ${subj} \
                 --sd ${fs_output} \
                 --annot lausanne2018.scale${_scale} \
+                --threads ${_a2a_threads} \
                 --o ${_raw_parc}"
 
             task_exec
@@ -3932,6 +3942,7 @@ if [[ "${M_flag}" -eq 1 ]]; then
             --s ${subj} \
             --sd ${fs_output} \
             --annot HCPMMP1 \
+            --threads ${_a2a_threads} \
             --o ${fs_output}/${subj}/mri/HCPMMP1+aseg.mgz"
 
         task_exec

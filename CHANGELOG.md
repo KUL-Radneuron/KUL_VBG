@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased (2026-09-28c — container validated end to end on a clinical subject)
+
+First full run of the rebuilt SIF on real data: `clinical_sub-PionTim_type1`,
+`-z T1 -n 24 -B 1 -P 1 -M -H -t -O`, inputs bound read-only, outputs to a
+scratch dir. **5.4 hours, zero `Fail (exit …)`, zero `[error]`, QC verdict PASS**
+(the single warning is `dark_voxel_fraction=0.316`, informational by design).
+
+All six stage markers were written — `recon-all`, `multiscale_parc`,
+`thalamic_nuclei`, `brainstem_subregions`, `hippo_amygdala`,
+`hypothalamic_subunits` — which also exercises the FreeSurfer 8.2.0 patch, since
+those subregion segmentations are exactly what silently produced nothing in the
+unpatched image.
+
+**Thread cap confirmed:** all seven `mri_aparc2aseg` calls ran `--threads 8`
+while the pipeline used 24 threads, and none crashed.
+
+**Overlap fix confirmed, and the old reports are wrong.** Same subject, same
+lesion, August run versus this one:
+
+| | 2026-08-09 (`L_mask_in_T1_bin`) | 2026-09-28 (`Lmask_nat_bin`) |
+|---|---|---|
+| lesion volume | 25,039 vox | 13,092 vox / 9,310 mm3 |
+| structures with overlap | 1 — CSF, 4.7% of lesion | 7, anatomically coherent |
+
+August put 4.7% of the lesion in CSF and found nothing else, i.e. ~95% of the
+mask fell in unlabelled space — the signature of a mask sitting ~1.5 cm off in
+native space. The new report reads as real anatomy: Left-Cerebral-White-Matter
+28.6%, CSF 23.6%, `ctx-lh-paracentral` 22.5% of the lesion and 52.9% of that
+parcel, then superiorfrontal, right paracentral, precentral, posterior cingulate.
+
+**Any `-O` overlap report produced before 2026-09-20 should be regenerated.**
+
+Note for future readers: `WARNING: shape mismatch — parc (256,256,256) vs lesion
+(208,288,288), resampling lesion to parc space` is expected on every run. The
+parcellation is in FreeSurfer's conformed 256^3 space and the lesion is native;
+`resample_from_to` maps between them by world coordinates. The old bug was a mask
+with the wrong *affine*, which world-coordinate resampling reproduced faithfully.
+
 ## Unreleased (2026-09-28b — flatten-route cleanup failed on subuid-owned files, failing a successful build)
 
 ### Docker/build.sh — `rm -rf` on the sandbox cannot remove what `--map-auto` created

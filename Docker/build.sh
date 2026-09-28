@@ -437,9 +437,20 @@ which never reads a layer blob."
 
         # docker export carries only the filesystem — ENV/ENTRYPOINT/CMD are
         # image metadata and are lost, so they are restored here.
+        #
+        # `From: sandbox` is RELATIVE on purpose, and the build below runs with
+        # ${_work} as its working directory. apptainer stores the def file inside
+        # the SIF and derives the label
+        # org.label-schema.usage.singularity.deffile.from from it, so an absolute
+        # path here publishes the builder's own filesystem layout — this image
+        # shipped with `/media/ra/Data2/.vbg_sifbuild/sandbox`, i.e. a username
+        # and drive layout, readable by anyone running `apptainer inspect`. A
+        # relative path reduces that label to `sandbox`. Verified with apptainer
+        # 1.5.3: a relative localimage From resolves against the working
+        # directory and the label carries no path.
         cat > "${_work}/from_sandbox.def" <<EOF
 Bootstrap: localimage
-From: ${_sandbox}
+From: sandbox
 
 %labels
     Maintainer   radwanphd@gmail.com
@@ -459,7 +470,11 @@ From: ${_sandbox}
 EOF
 
         log "Packing the sandbox into ${SIF_PATH}"
-        "${APPTAINER_BIN}" build --force "${SIF_PATH}" "${_work}/from_sandbox.def" \
+        # Absolute output path, because the build runs from inside ${_work} so
+        # that `From: sandbox` resolves — a relative SIF_PATH would otherwise
+        # land in the scratch directory and be deleted with it.
+        _sif_abs="$(cd "$(dirname "${SIF_PATH}")" && pwd)/$(basename "${SIF_PATH}")"
+        ( cd "${_work}" && "${APPTAINER_BIN}" build --force "${_sif_abs}" from_sandbox.def ) \
             || { _rm_work; die "apptainer build from sandbox failed"; }
         _rm_work
         ok "SIF built via the flatten route"

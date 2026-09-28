@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased (2026-09-28d — the SIF published the builder's own filesystem layout)
+
+### Docker/build.sh — an absolute `From:` leaks a username and drive layout into the image
+`apptainer inspect` on the shipped SIF showed
+
+```
+org.label-schema.usage.singularity.deffile.from: /media/ra/Data2/.vbg_sifbuild/sandbox
+```
+
+apptainer stores the def file inside the SIF and derives that label from it, so an
+absolute `From:` publishes the build host's paths — a username and drive layout —
+to anyone who inspects the image. Irrelevant to users and not ours to share,
+especially for an image intended for a public or access-controlled repository.
+
+Fixed by writing `From: sandbox` (relative) and running the pack step with the
+scratch directory as its working directory. The output path is resolved to an
+absolute one first, so a relative `--sif-path` does not land inside the scratch
+tree and get deleted with it. Verified with apptainer 1.5.3 on a throwaway
+sandbox: the label reduces to `sandbox`.
+
+Audited the rest of the image at the same time, for a deposit that will be shared:
+
+- **No patient data.** Nothing in the filesystem matches the test subjects' names.
+- **No FreeSurfer licence key.** `/licence/license.txt` is a 0-byte placeholder
+  and the FreeSurfer path is a symlink to it, as intended.
+- **No credentials.** No `.netrc`, `.git-credentials` or shell history; `/root/.ssh`
+  exists but is empty.
+- **`/etc/passwd` is clean** — checked against squashfs ground truth via
+  `unsquashfs`, which shows the stock `ubuntu:x:1000:1000:Ubuntu` entry. A
+  `ra:x:1000:1000:Radwan:/home/ra` line *appears* under `apptainer exec`, even with
+  `--containall`, but that is apptainer's runtime passwd injection, not something
+  baked into the image. Worth knowing before anyone else reports it as a leak.
+- The maintainer e-mail in the labels and def file is deliberate authorship
+  metadata, already public in the repository headers, and is kept.
+
 ## Unreleased (2026-09-28c — container validated end to end on a clinical subject)
 
 First full run of the rebuilt SIF on real data: `clinical_sub-PionTim_type1`,

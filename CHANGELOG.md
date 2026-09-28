@@ -1,5 +1,62 @@
 # Changelog
 
+## Unreleased (2026-09-28 — `docker save` writes a silently incomplete archive; SIF route is now selectable and builds are logged)
+
+### Docker/build.sh — the "corrupt layer" was a truncated export, not a bad blob
+The SIF conversion failed three times running on the 2026-09-20 rebuild, each
+time reporting the same blob hashing to the same wrong digest, and pointed at
+non-ECC RAM. That diagnosis was wrong, and the check that produced it was too
+narrow.
+
+`docker save` (docker 29.1.3, containerd image store, overlayfs snapshotter) is
+writing an archive that stops part-way and reports success:
+
+| | expected | actual |
+|---|---|---|
+| layer blobs | 20 (per image config) | 13 |
+| `index.json`, `oci-layout`, `manifest.json` | present | **all absent** |
+| total bytes | ~16.2 GB content | 4.94 GB |
+| exit status / stderr | — | 0 / empty |
+
+Reproduced four times with an identical byte count, so it is deterministic — not
+a bit-flip, which would land somewhere different each time. `dmesg` showed no I/O
+or MCE errors and the host exposes no EDAC controllers. The blob that "hashed
+wrong" is simply the last member written before the stream stops: full declared
+length, wrong contents. An OCI layout without `index.json` is unusable by
+apptainer regardless of what the blobs say.
+
+The image itself was never damaged. Containers run from the extracted overlayfs
+snapshot, which is a separate copy from the compressed blob, which is why the
+smoke test passed throughout. Only `docker save`, `docker push` and SIF
+conversion read the damaged path.
+
+Root cause inside docker is unconfirmed (the content store needs root to read).
+The suspicion is that locally built layers live as snapshots and some compressed
+blobs are absent from the content store, with `docker save` giving up silently
+rather than erroring. This also re-frames the "intermittent corrupt layer" noted
+for 2026-08-14 as the same defect.
+
+Changes:
+- **Completeness is verified before digests.** `index.json` must be present and
+  the blob count must be at least layers + 2. Truncation is now reported as
+  truncation, and the misleading memtest86+ advice is gone.
+- **`--sif-route auto|archive|flatten`.** `flatten` skips `docker save` entirely
+  (`docker export` → sandbox → SIF, never reading a layer blob); `archive` forces
+  the fast path and fails hard; `auto` (default) tries archive, then falls back to
+  flatten instead of dying. On this host both known obstacles sit in the archive
+  route — the truncated export, and apptainer 1.5.3 being unable to unpack the
+  ~11 GB FreeSurfer layer — so `flatten` is the working route here.
+- **`--log FILE`, on by default** (`build_<stamp>.log`, `none` to disable). One
+  `exec` redirect, so docker's and apptainer's own output is captured too, not
+  just the script's messages; stderr is folded in; ANSI colours are stripped on
+  the way to disk while the terminal keeps them; `sed -u` keeps it line-buffered
+  for `tail -f`. A build runs for hours and its failures scroll away.
+
+Verified: the flatten route produced a working 15 GB SIF on 2026-09-20 (tools,
+torch, checkpoints, atlases and the licence gate all pass), and the transcript
+was confirmed to capture docker's stderr and the final error on a deliberately
+failing run.
+
 ## Unreleased (2026-09-21 — `mri_aparc2aseg` thread cap: FreeSurfer 8.2.0 races itself at 48 threads)
 
 ### `mri_aparc2aseg` intermittently segfaults, taking VBG and everything downstream with it

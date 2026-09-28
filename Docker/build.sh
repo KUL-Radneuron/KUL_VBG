@@ -26,6 +26,8 @@ REGISTRY="radwankul"          # for --push
 TORCH_BACKEND="cu126"
 FSL_FLAVOUR="subset"
 SIF_PATH=""                   # defaults to ./KUL_VBG_<tag>.sif
+SIF_ROUTE="auto"              # auto|archive|flatten — see --sif-route
+LOG_FILE=""                   # empty = auto-name; "none" = no transcript
 DO_DOCKER=1
 DO_SIF=0
 DO_PUSH=0
@@ -57,6 +59,13 @@ Options:
   --sif                  also build the Apptainer SIF
   --sif-only             skip the Docker build, only convert to SIF
   --sif-path PATH        output SIF path        (default: ./KUL_VBG_<tag>.sif)
+  --sif-route ROUTE      auto|archive|flatten   (default: ${SIF_ROUTE})
+                         archive = docker save -> apptainer; flatten = docker
+                         export -> sandbox -> apptainer, which never reads a
+                         layer blob. Use flatten when docker save is unreliable.
+  --log FILE             transcript file        (default: build_<stamp>.log,
+                         'none' to disable). Captures docker and apptainer
+                         output too, so a failed run can be read afterwards.
   --push                 docker push after a successful build
   --no-cache             docker build --no-cache
   --build-arg K=V        extra --build-arg, repeatable
@@ -73,6 +82,7 @@ EOF
 }
 
 # ── Arguments ────────────────────────────────────────────────────────────────
+_ORIG_ARGS=("$@")          # kept verbatim for the log header; parsing shifts them
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name)          IMAGE_NAME="$2"; shift 2 ;;
@@ -83,6 +93,8 @@ while [[ $# -gt 0 ]]; do
         --sif)           DO_SIF=1; shift ;;
         --sif-only)      DO_SIF=1; DO_DOCKER=0; shift ;;
         --sif-path)      SIF_PATH="$2"; shift 2 ;;
+        --sif-route)     SIF_ROUTE="$2"; shift 2 ;;
+        --log)           LOG_FILE="$2"; shift 2 ;;
         --push)          DO_PUSH=1; shift ;;
         --no-cache)      NO_CACHE=1; shift ;;
         --build-arg)     EXTRA_BUILD_ARGS+=(--build-arg "$2"); shift 2 ;;
@@ -98,6 +110,30 @@ case "${FSL_FLAVOUR}" in
     subset|full) ;;
     *) die "--fsl must be 'subset' or 'full', got '${FSL_FLAVOUR}'" ;;
 esac
+
+case "${SIF_ROUTE}" in
+    auto|archive|flatten) ;;
+    *) die "--sif-route must be 'auto', 'archive' or 'flatten', got '${SIF_ROUTE}'" ;;
+esac
+
+# ── Transcript ───────────────────────────────────────────────────────────────
+# A build runs for hours and its interesting failures (docker save, apptainer
+# unpack) are verbose and scroll away, so everything from here on is teed to a
+# file. Colours are stripped on the way to disk while the terminal keeps them,
+# and stderr is folded in so warnings and the final error land in context.
+# `sed -u` keeps it line-buffered, so a log read during the run is current.
+if [[ "${LOG_FILE}" != "none" ]]; then
+    : "${LOG_FILE:=build_$(date +%Y%m%d_%H%M%S).log}"
+    {
+        echo "# KUL_VBG container build"
+        echo "# started: $(date '+%Y-%m-%d %H:%M:%S %z')"
+        echo "# host:    $(hostname)"
+        echo "# docker:  $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo unknown)"
+        echo "# command: ${BASH_SOURCE[0]} ${_ORIG_ARGS[*]}"
+    } >>"${LOG_FILE}" || die "cannot write the log file ${LOG_FILE}"
+    exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >>"${LOG_FILE}")) 2>&1
+    log "Logging this run to ${LOG_FILE}"
+fi
 
 case "${TORCH_BACKEND}" in
     cu118|cu126|cu128|cpu) ;;
@@ -240,23 +276,56 @@ if [[ ${DO_SIF} -eq 1 ]]; then
     # bad export simply gets retried. Content-addressed blobs make this a free,
     # exact check: no reference copy needed, the name IS the checksum.
     _archive="${SIF_PATH%.sif}.docker.tar"
+    _need_flatten=0
+
+    if [[ "${SIF_ROUTE}" == "flatten" ]]; then
+        log "Skipping the docker save archive route (--sif-route flatten)"
+        _need_flatten=1
+    else
+
     _attempt=1
     _max_attempts=3
+    # Expected layer count straight from the image config. `docker save` was
+    # observed (2026-09-20, docker 29.1.3 + containerd image store) to write a
+    # SILENTLY INCOMPLETE archive: exit 0, empty stderr, no index.json and only
+    # 13 of 20 layer blobs, ending mid-way with the last blob full-length but
+    # hashing wrong. Verifying blob digests alone reported that as one "corrupt
+    # layer" and sent the reader off to test RAM, when the archive was actually
+    # truncated. Both are now checked, and completeness is checked first.
+    _want_layers="$(docker image inspect "${IMAGE_REF}" \
+                    --format '{{len .RootFS.Layers}}' 2>/dev/null || echo 0)"
     while : ; do
         log "Exporting image to ${_archive} (attempt ${_attempt}/${_max_attempts})"
         docker save "${IMAGE_REF}" -o "${_archive}" || die "docker save failed"
 
-        log "Verifying exported layer digests"
+        log "Verifying the export is complete"
         _bad=0
-        while read -r _blob; do
-            [[ -n "${_blob}" ]] || continue
-            _actual="$(tar -xOf "${_archive}" "blobs/sha256/${_blob}" 2>/dev/null \
-                       | sha256sum | cut -d' ' -f1)"
-            if [[ "${_actual}" != "${_blob}" ]]; then
-                warn "corrupt layer: ${_blob:0:16}... hashed to ${_actual:0:16}..."
-                _bad=$((_bad + 1))
-            fi
-        done < <(tar -tf "${_archive}" 2>/dev/null | grep '^blobs/sha256/' | sed 's|blobs/sha256/||')
+        _members="$(tar -tf "${_archive}" 2>/dev/null)"
+        _got_blobs="$(grep -c '^blobs/sha256/' <<<"${_members}" || true)"
+        # An OCI layout must carry index.json; docker save writes it last, so a
+        # missing one means the archive stops short no matter what the blobs say.
+        if ! grep -q '^index\.json$' <<<"${_members}"; then
+            warn "truncated export: no index.json (docker save exited 0 anyway)"
+            _bad=$((_bad + 1))
+        fi
+        # blobs = one per layer, plus the config and the manifest.
+        if [[ ${_want_layers} -gt 0 ]] && [[ ${_got_blobs} -lt $((_want_layers + 2)) ]]; then
+            warn "truncated export: ${_got_blobs} blobs for an image with ${_want_layers} layers"
+            _bad=$((_bad + 1))
+        fi
+
+        if [[ ${_bad} -eq 0 ]]; then
+            log "Verifying exported layer digests"
+            while read -r _blob; do
+                [[ -n "${_blob}" ]] || continue
+                _actual="$(tar -xOf "${_archive}" "blobs/sha256/${_blob}" 2>/dev/null \
+                           | sha256sum | cut -d' ' -f1)"
+                if [[ "${_actual}" != "${_blob}" ]]; then
+                    warn "corrupt layer: ${_blob:0:16}... hashed to ${_actual:0:16}..."
+                    _bad=$((_bad + 1))
+                fi
+            done < <(grep '^blobs/sha256/' <<<"${_members}" | sed 's|blobs/sha256/||')
+        fi
 
         if [[ ${_bad} -eq 0 ]]; then
             ok "all exported layers verified"
@@ -265,22 +334,34 @@ if [[ ${DO_SIF} -eq 1 ]]; then
 
         rm -f "${_archive}"
         if [[ ${_attempt} -ge ${_max_attempts} ]]; then
-            die "docker save produced corrupt layers ${_max_attempts} times running.
-
-That is more than bad luck. Two things worth checking:
-  * RAM. Intermittent corruption of only the largest object, with no kernel I/O
-    errors logged, is a classic non-ECC bit-flip signature. Run memtest86+.
-  * Disk space and the filesystem under \$TMPDIR and /var/lib/docker."
+            if [[ "${SIF_ROUTE}" == "archive" ]]; then
+                die "docker save produced a bad archive ${_max_attempts} times running,
+and --sif-route archive forbids the fallback. Retry with --sif-route flatten,
+which never reads a layer blob."
+            fi
+            warn "docker save produced a bad archive ${_max_attempts} times running."
+            warn "Identical results across attempts point at docker or the stored"
+            warn "blob, not at a random bit-flip — falling back to the flatten route."
+            _need_flatten=1
+            break
         fi
         warn "retrying the export"
         _attempt=$((_attempt + 1))
     done
 
-    if "${APPTAINER_BIN}" build --force "${SIF_PATH}" "docker-archive://${_archive}"; then
-        rm -f "${_archive}"
-    else
-        rm -f "${_archive}"
-        warn "apptainer could not unpack the OCI layers — falling back to the flatten route."
+    if [[ ${_need_flatten} -eq 0 ]]; then
+        if "${APPTAINER_BIN}" build --force "${SIF_PATH}" "docker-archive://${_archive}"; then
+            rm -f "${_archive}"
+        else
+            rm -f "${_archive}"
+            warn "apptainer could not unpack the OCI layers — falling back to the flatten route."
+            _need_flatten=1
+        fi
+    fi
+
+    fi  # end of the archive route
+
+    if [[ ${_need_flatten} -eq 1 ]]; then
         echo
 
         # Why a fallback exists at all.

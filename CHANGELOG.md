@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased (2026-09-28b — flatten-route cleanup failed on subuid-owned files, failing a successful build)
+
+### Docker/build.sh — `rm -rf` on the sandbox cannot remove what `--map-auto` created
+The 2026-09-28 rebuild built the image, passed the smoke test and wrote a
+complete 15 GB SIF ("Build complete"), then exited 1 — never printing
+`SIF built via the flatten route` and never running the SIF verification or the
+licence-gate check.
+
+Cause: the flatten route extracts the rootfs under
+`unshare --map-auto --map-root-user`, so files land owned by mapped subuids
+(`100999`... from this host's `ra:100000:65536` range). The plain `rm -rf` that
+followed cleared most of the tree and then failed on ~80 paths under
+`var/cache/man`, `run/systemd` and `home/ubuntu`, which an unprivileged user
+cannot unlink from outside that namespace. Under `set -e` that turned a finished
+build into exit 1, with the verification steps skipped.
+
+It passed on 2026-09-20 because the `unshare --map-auto` probe failed there and
+the extraction fell back to plain `tar --no-same-owner`, leaving everything owned
+by the invoking user. The host kernel moved 7.0.0-31 → 7.0.0-34 between the two
+runs, so the fallback silently stopped being taken — the cleanup was always
+wrong, and only the fallback had been hiding it.
+
+Fixed with a `_rm_work` helper used at all five cleanup sites: plain `rm -rf`
+first (correct when the extraction fell back to plain tar), then the same
+`unshare --map-auto --map-root-user`, then a warning rather than an error. It
+never aborts the build, because a leftover scratch directory must not fail a
+finished SIF.
+
+Verified by hand on the 2026-09-28 SIF, since `build.sh` never reached its own
+checks: all tools present, QC deps, torch, FastSurfer checkpoints, Glasser annot,
+`segment_subregions` runs, the licence gate still refuses, and
+`mri_aparc2aseg --threads ${_a2a_threads}` is present at all three call sites.
+
 ## Unreleased (2026-09-28 — `docker save` writes a silently incomplete archive; SIF route is now selectable and builds are logged)
 
 ### Docker/build.sh — the "corrupt layer" was a truncated export, not a bad blob

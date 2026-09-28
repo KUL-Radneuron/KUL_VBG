@@ -382,10 +382,27 @@ which never reads a layer blob."
         _work="$(dirname "${SIF_PATH}")/.vbg_sifbuild"
         _rootfs="${_work}/rootfs.tar"
         _sandbox="${_work}/sandbox"
+
+        # The sandbox must be removed from inside the same user namespace that
+        # extracted it. With --map-auto the rootfs lands owned by mapped subuids
+        # (100999 and friends from /etc/subuid), which this user cannot unlink
+        # from outside the namespace: a plain `rm -rf` clears most of the tree,
+        # then fails on ~80 paths under var/cache/man, run/systemd and
+        # home/ubuntu. Under `set -e` that killed the script *after* the SIF was
+        # already built, skipping the verification step and returning 1 on a
+        # successful build (2026-09-28). Plain rm is tried first, since the
+        # extraction falls back to plain tar when unshare is unavailable.
+        _rm_work() {
+            [[ -e "${_work}" ]] || return 0
+            rm -rf "${_work}" 2>/dev/null && return 0
+            unshare --map-auto --map-root-user rm -rf "${_work}" 2>/dev/null && return 0
+            warn "could not remove ${_work} — leftover files are owned by mapped subuids"
+            return 0
+        }
         _cname="vbg_export_$$"
 
         warn "This needs roughly 2x the image size again in $(dirname "${SIF_PATH}")."
-        rm -rf "${_work}"; mkdir -p "${_sandbox}"
+        _rm_work; mkdir -p "${_sandbox}"
 
         log "Flattening ${IMAGE_REF} with docker export"
         docker rm -f "${_cname}" >/dev/null 2>&1 || true
@@ -415,7 +432,7 @@ which never reads a layer blob."
                   opt/KUL_VBG/KUL_VBG.sh opt/FastSurfer/run_fastsurfer.sh entrypoint.sh; do
             # shellcheck disable=SC2086  # glob on the FS version directory is intended
             compgen -G "${_sandbox}/${_p}" >/dev/null \
-                || { rm -rf "${_work}"; die "flattened rootfs is incomplete: missing ${_p}"; }
+                || { _rm_work; die "flattened rootfs is incomplete: missing ${_p}"; }
         done
 
         # docker export carries only the filesystem — ENV/ENTRYPOINT/CMD are
@@ -443,8 +460,8 @@ EOF
 
         log "Packing the sandbox into ${SIF_PATH}"
         "${APPTAINER_BIN}" build --force "${SIF_PATH}" "${_work}/from_sandbox.def" \
-            || { rm -rf "${_work}"; die "apptainer build from sandbox failed"; }
-        rm -rf "${_work}"
+            || { _rm_work; die "apptainer build from sandbox failed"; }
+        _rm_work
         ok "SIF built via the flatten route"
     fi
 

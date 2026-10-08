@@ -521,7 +521,7 @@ elif [[ "$bids_flag" -eq 1 ]] && [[ "$s_flag" -eq 1 ]]; then
     ses_string="${cwd}/BIDS/${subj}/ses-${ses}"
 	search_sessions=($(find ${ses_string} -type d | grep anat));
 	num_sessions=1;
-	ses_long=_ses-0${num_sessions};
+	ses_long=_ses-${ses};
 		
 	if [[ "$num_sessions" -eq 1 ]]; then 
 			

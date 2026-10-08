@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased (2026-10-09 — every BIDS session was written out as ses-01)
+
+### KUL_VBG.sh — `-b -s <ses>` named all outputs `_ses-01`
+In BIDS mode with `-s`, `ses_long` was hard-coded to `_ses-0${num_sessions}` with
+`num_sessions=1` (a leftover from 2020 testing), so the session suffix was always
+`_ses-01` whatever `-s` said. Inputs were read from the right `ses-<ses>/anat`, but
+`output_VBG/`, `proc_VBG/` and the FreeSurfer/FastSurfer/SynthSeg subject were all
+named `<sub>_ses-01`: a second session of the same subject overwrote the first
+unless each run was given its own `-o`/`-m`.
+
+Fixed: `ses_long=_ses-${ses}`. Single-session runs with `-s 01` are unchanged;
+`-s 2` now writes `<sub>_ses-2`. Found while looping VBG over multi-session data
+(MSLesSeg time points).
+
 ## Unreleased (2026-09-28d — the SIF published the builder's own filesystem layout)
 
 ### Docker/build.sh — an absolute `From:` leaks a username and drive layout into the image

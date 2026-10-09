@@ -298,9 +298,9 @@ ARG FREESURFER_DEB
 ARG FASTSURFER_REPO
 ARG FASTSURFER_COMMIT
 ARG TORCH_BACKEND
-ARG VBG_REPO
-ARG VBG_BRANCH
-ARG VBG_COMMIT
+# VBG_REPO/VBG_BRANCH/VBG_COMMIT are declared just above the KUL_VBG clone below,
+# not here: a changed ARG invalidates the cache of every later RUN in the stage, so
+# declaring them here made each VBG_COMMIT bump redo apt, FreeSurfer and FastSurfer.
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Etc/UTC \
@@ -556,6 +556,9 @@ RUN set -eux; \
 # already public in the repo, it is negligible against the image size, and it
 # lets the container be verified end-to-end without the user supplying data.
 # Only .git is dropped.
+ARG VBG_REPO
+ARG VBG_BRANCH
+ARG VBG_COMMIT
 RUN set -eux; \
     git clone -b "${VBG_BRANCH}" "${VBG_REPO}" /opt/KUL_VBG; \
     git -C /opt/KUL_VBG checkout "${VBG_COMMIT}"; \

@@ -14,6 +14,35 @@ Fixed: `ses_long=_ses-${ses}`. Single-session runs with `-s 01` are unchanged;
 `-s 2` now writes `<sub>_ses-2`. Found while looping VBG over multi-session data
 (MSLesSeg time points).
 
+### KUL_VBG.sh — with `-o`/`-m`, sessions still shared one folder
+`output_d` and `preproc` are built from `-o`/`-m` near the top of the script, before
+the session block sets `ses_long`, and the session block only rebuilds them when
+`-o`/`-m` are *not* given. So with `-o`/`-m`, every session of a subject used
+`output_VBG/<sub>` and `proc_VBG/<sub>`, and the second session failed outright:
+recon-all refused to re-run the existing temporary subject `<sub>_temp`. Both paths
+are now rebuilt right after the session block. Verified on two DLBS waves of one
+subject with a shared `-o`/`-m`: before, both runs used `sub-dlbs1007` and wave 2
+exited with "You are trying to re-run an existing subject"; after, they wrote
+`sub-dlbs1007_ses-wave1` and `sub-dlbs1007_ses-wave2`.
+
+### Docker/build.sh — a complete `docker save` archive was rejected as truncated
+The completeness check required one blob per layer, but identical layers (here the
+empty layer `sha256:5f70bf18…`, three times) are stored once. A complete archive
+(20 layers, 18 distinct, 21 blobs) was rejected three times and the build fell back
+to the flatten route, which prints ~140 harmless `tar` ownership errors. The check
+now counts distinct layer digests; the archive route then verified every layer.
+
+### Docker/Dockerfile — a `VBG_COMMIT` bump rebuilt FreeSurfer and FastSurfer
+`ARG VBG_REPO/VBG_BRANCH/VBG_COMMIT` were declared at the top of the final stage,
+and a changed ARG invalidates the cache of every later `RUN` in that stage. They are
+now declared just above the KUL_VBG clone, so a bump only redoes the clone onwards.
+
+### Docker/entrypoint.sh — an inherited host `TMPDIR` broke recon-all
+Apptainer passes the host environment in, so a host `TMPDIR` that does not exist in
+the container made `mktemp` fail and recon-all die in `rca-config2csh`. The
+entrypoint now falls back to `/tmp` (already checked writable) and says so.
+`--cleanenv` avoids this and similar leaks (e.g. `XDG_CACHE_HOME`) altogether.
+
 ## Unreleased (2026-09-28d — the SIF published the builder's own filesystem layout)
 
 ### Docker/build.sh — an absolute `From:` leaks a username and drive layout into the image

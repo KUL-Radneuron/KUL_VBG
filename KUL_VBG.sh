@@ -590,8 +590,13 @@ elif [[ "$bids_flag" -eq 0 ]] && [[ "$s_flag" -eq 1 ]]; then
 	echo " Wrong optional arguments, we cant have sessions without BIDS, exiting."
     
 	exit 2
-		
+
 fi
+
+# -o/-m paths were built above, before the session suffix was known; rebuild them
+# now so that sessions of one subject do not share output_VBG/ and proc_VBG/ dirs.
+[[ "$o_flag" -eq 1 ]] && output_d="${output_m}/output_VBG/${subj}${ses_long}"
+[[ "$m_flag" -eq 1 ]] && preproc="${preproc_m}/proc_VBG/${subj}${ses_long}"
 
 
 ######

@@ -292,8 +292,14 @@ if [[ ${DO_SIF} -eq 1 ]]; then
     # hashing wrong. Verifying blob digests alone reported that as one "corrupt
     # layer" and sent the reader off to test RAM, when the archive was actually
     # truncated. Both are now checked, and completeness is checked first.
+    # Count DISTINCT layers: identical layers (e.g. the empty layer sha256:5f70bf18...
+    # that a RUN changing no files produces) are stored as ONE blob, so counting
+    # them all flagged a complete archive as truncated (2026-10-09: 20 layers, 18
+    # distinct, 21 blobs).
     _want_layers="$(docker image inspect "${IMAGE_REF}" \
-                    --format '{{len .RootFS.Layers}}' 2>/dev/null || echo 0)"
+                    --format '{{range .RootFS.Layers}}{{println .}}{{end}}' 2>/dev/null \
+                    | sort -u | grep -c . || true)"
+    _want_layers="${_want_layers:-0}"
     while : ; do
         log "Exporting image to ${_archive} (attempt ${_attempt}/${_max_attempts})"
         docker save "${IMAGE_REF}" -o "${_archive}" || die "docker save failed"

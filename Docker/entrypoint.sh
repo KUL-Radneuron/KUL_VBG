@@ -11,6 +11,7 @@
 #   1. locate and validate the user-supplied FreeSurfer licence
 #   2. export the environment KUL_VBG.sh expects
 #   3. check /tmp is writable (the FS 8.2.0 mris_register workaround needs it)
+#      and fall back to it when an inherited TMPDIR does not exist in the container
 #   4. report GPU visibility
 #   5. exec whatever the user asked for
 ###############################################################################
@@ -158,6 +159,15 @@ KUL_VBG needs it for the FreeSurfer 8.2.0 mris_register workaround
 Bind a writable directory over it, e.g.  -B /scratch/\$USER/tmp:/tmp"
 fi
 rm -f /tmp/.kul_vbg_write_test
+
+# Apptainer passes the host environment in by default, so a host TMPDIR (e.g. a
+# site scratch path) arrives pointing at a directory that does not exist in the
+# container. mktemp then fails and recon-all dies early (rca-config2csh gets no
+# config file). Fall back to /tmp, which was just shown to be writable.
+if [[ -n "${TMPDIR:-}" ]] && ! { [[ -d "${TMPDIR}" ]] && [[ -w "${TMPDIR}" ]]; }; then
+    echo "NOTE: TMPDIR=${TMPDIR} is not usable inside the container; using /tmp" >&2
+    export TMPDIR=/tmp
+fi
 
 ###############################################################################
 # 4. GPU visibility — informational only

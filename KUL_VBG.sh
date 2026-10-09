@@ -3479,23 +3479,52 @@ if [[ "${P_flag}" -eq 1 ]] ; then
             nvram=$(nvidia-smi --query-gpu=memory.free --format=csv 2>/dev/null | tail -1 | awk '{print $1}') || nvram=0
             [[ ${nvram} -gt 4000 ]] && ss_cpu="" || ss_cpu=" --cpu --threads ${ncpu} "
 
-            task_in="mri_synthseg --i ${T1_4_FS} --o ${synthseg_parc} --parc --vol ${synthseg_vol} --qc ${synthseg_qc} --robust ${ss_cpu}"
+            # --keepgeom: write the parcellation on the T1 grid (SynthSeg otherwise
+            # resamples to 1 mm), so it can be masked with the T1-space masks below.
+            task_in="mri_synthseg --i ${T1_4_FS} --o ${synthseg_parc} --parc --vol ${synthseg_vol} --qc ${synthseg_qc} --robust --keepgeom ${ss_cpu}"
 
             task_exec
 
-            # Reinsert lesion label (label 99) into parcellation
+        else
+
+            echo " SynthSeg parcellation already done, skipping." | tee -a ${prep_log}
+
+        fi
+
+        fs_parc_mgz="${synthseg_parc}"
+
+        # Reinsert lesion label (label 99) into parcellation. Its two inputs were
+        # only ever made in the recon-all post-processing block further down,
+        # which -P 4 skips, so -P 4 always failed here on a missing
+        # ${bmc_minL_conn}; make them here when missing. Kept outside the
+        # SynthSeg "already done" check so a re-run completes this step.
+        if [[ ! -f "${fs_output}/${subj}_synthseg+Lesion.nii.gz" ]]; then
+
+            if [[ ! -f "${bmc_minL_conn}" ]]; then
+
+                task_in="fslmaths ${Lmask_o} -binv -mul ${T1_BM_4_FS} -bin ${bmc_minL_true}"
+
+                task_exec
+
+                task_in="maskfilter -force -nthreads ${ncpu} ${bmc_minL_true} connect - -connectivity -largest | mrcalc - 0.1 -gt ${bmc_minL_conn} -force -nthreads ${ncpu} -quiet"
+
+                task_exec
+
+            fi
+
+            if [[ ! -f "${L_mask_reori_scaled}" ]]; then
+
+                task_in="fslmaths ${Lmask_o} -bin -mul 99 ${L_mask_reori_scaled}"
+
+                task_exec
+
+            fi
+
             task_in="fslmaths ${synthseg_parc} -mas ${bmc_minL_conn} ${fs_output}/${subj}_synthseg_minL.nii.gz && \
             ImageMath 3 ${fs_output}/${subj}_synthseg+Lesion.nii.gz addtozero \
             ${fs_output}/${subj}_synthseg_minL.nii.gz ${L_mask_reori_scaled}"
 
             task_exec
-
-            fs_parc_mgz="${synthseg_parc}"
-
-        else
-
-            echo " SynthSeg parcellation already done, skipping." | tee -a ${prep_log}
-            fs_parc_mgz="${synthseg_parc}"
 
         fi
 
@@ -4096,10 +4125,13 @@ _overlap_html_arg=""
     _overlap_html_arg="--overlap_html ${_lesion_html}"
 if command -v python3 &>/dev/null && [[ -f "${function_path}/KUL_VBG_QC.py" ]]; then
     echo " Generating QC HTML report → ${_qc_html}" | tee -a ${prep_log}
+    # -s is the FILE PREFIX (with the session suffix), -o the output DIRECTORY:
+    # passing ${subj} and ${str_op} (a prefix, not a dir) left the QC script unable
+    # to find any file of a -s run, and the final fill of every run.
     python3 "${function_path}/KUL_VBG_QC.py" \
-        -s "${subj}" \
+        -s "${subj}${ses_long}" \
         -p "${preproc}" \
-        -o "${str_op}" \
+        -o "${output_d}" \
         -q "${_qc_dir}" \
         -d "${recall_scripts:-}" \
         --html "${_qc_html}" \

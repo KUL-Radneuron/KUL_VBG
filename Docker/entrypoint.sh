@@ -118,29 +118,75 @@ fi
 # meant to run) would otherwise have the host's paths silently shadow the
 # container's, producing "command not found" or, worse, a mix of two FreeSurfer
 # installs. Pinning them here makes the container authoritative.
+#
+# Pinning the variables the image defines is not enough: the host also brings
+# variables the image does NOT define, and those are read by tools inside it.
+# Found on a real host (2026-10-09):
+#   * FSL_DIR — FreeSurferEnv.sh copies it into FSLDIR (unless FS_OVERRIDE=1),
+#     so sourcing SetUpFreeSurfer.sh below put the HOST FSL back and fslswapdim
+#     died calling a host fslval ("not found", exit 127) half an hour into VBG.
+#   * MINC_*/MNI_*/PERL5LIB/FUNCTIONALS_DIR — the host FreeSurfer's MNI tools and
+#     Perl libraries, kept by FreeSurferEnv.sh and added to PATH.
+#   * PYTHONPATH — the host's MRtrix3 python modules, imported by every python
+#     in the container (FreeSurfer's, FastSurfer's, the VBG venv).
+#   * LD_LIBRARY_PATH/LD_PRELOAD (typical of module systems) — host libraries
+#     loaded into container binaries.
+# So host variables in these families are dropped first, and everything the
+# image needs is then set explicitly. KUL_VBG_KEEP_HOST_ENV=1 skips the drop.
 ###############################################################################
+if [[ "${KUL_VBG_KEEP_HOST_ENV:-0}" != 1 ]]; then
+    for _v in $(compgen -e); do
+        case "${_v}" in
+            FS_LICENSE|KUL_VBG_*) ;;   # licence resolved above; KUL_VBG_* are this image's own
+            FSL*|FREESURFER*|FS_*|FSF*|FSFAST*|MNI_*|MINC_*|PERL5LIB|FUNCTIONALS_DIR|\
+            FMRI_ANALYSIS_DIR|LOCAL_DIR|SUBJECTS_DIR|ANTSPATH|ITK_*|MRTRIX*|FASTSURFER*|\
+            VBG_PYENV|PYTHONPATH|PYTHONHOME|PYTHONSTARTUP|PYTHONUSERBASE|VIRTUAL_ENV|\
+            CONDA_*|_CONDA_*|LD_LIBRARY_PATH|LD_PRELOAD|LOCPATH|CUDA_HOME|XDG_CACHE_HOME|MPLCONFIGDIR)
+                unset "${_v}" ;;
+        esac
+    done
+fi
+[[ -n "${_lic}" ]] && export FS_LICENSE="${_lic}" || unset FS_LICENSE
+
 export FREESURFER_HOME="${KUL_VBG_FREESURFER_HOME:-/usr/local/freesurfer/8.2.0}"
 export FSLDIR=/opt/fsl
 export FSLOUTPUTTYPE=NIFTI_GZ
+export FSLMULTIFILEQUIT=TRUE
+export FSLTCLSH=/opt/fsl/bin/fsltclsh
+export FSLWISH=/opt/fsl/bin/fslwish
 export ANTSPATH=/opt/ANTs/bin
 export FASTSURFER_HOME=/opt/FastSurfer
-export PATH="/opt/KUL_VBG:/opt/vbg-pyenv/bin:${ANTSPATH}:/opt/mrtrix3/bin:${FSLDIR}/bin:${FSLDIR}/share/fsl/bin:${FREESURFER_HOME}/bin:${FASTSURFER_HOME}:/usr/local/bin:/usr/bin:/bin"
+export VBG_PYENV=/opt/vbg-pyenv
+# python: no packages from the user's ~/.local (the home dir is bound by Apptainer)
+export PYTHONNOUSERSITE=1
+export PATH="/opt/KUL_VBG:${VBG_PYENV}/bin:${ANTSPATH}:/opt/mrtrix3/bin:${FSLDIR}/bin:${FSLDIR}/share/fsl/bin:${FREESURFER_HOME}/bin:${FASTSURFER_HOME}:/usr/local/bin:/usr/bin:/bin"
 
 # SetUpFreeSurfer.sh sets a handful of variables beyond FREESURFER_HOME
 # (FSFAST_HOME, MNI_DIR, MINC paths...). It is noisy, references unset
 # variables, and on some versions returns non-zero harmlessly — hence the
-# `set +u` guard and the discarded output/status. Everything that actually
-# matters is asserted explicitly above and below.
+# `set +u` guard and the discarded output/status. FS_OVERRIDE=1 makes it set
+# every one of them from this FreeSurfer (and take FSL_DIR from FSLDIR) instead
+# of keeping whatever was already in the environment.
+export FS_OVERRIDE=1
 if [[ -f "${FREESURFER_HOME}/SetUpFreeSurfer.sh" ]]; then
     set +u
     # shellcheck disable=SC1091  # path only exists inside the image
     source "${FREESURFER_HOME}/SetUpFreeSurfer.sh" >/dev/null 2>&1 || true
     set -u
 fi
+export FSLDIR=/opt/fsl   # re-assert: nothing above may have moved it
+# Back to 0 now that the environment is the container's: the login shell used for
+# `bash`/`sh` re-sources SetUpFreeSurfer.sh via /etc/profile.d, and with 1 it would
+# reset SUBJECTS_DIR (and FS_LICENSE) to FreeSurfer's defaults again.
+export FS_OVERRIDE=0
+# FS_OVERRIDE=1 also resets FS_LICENSE to $FREESURFER_HOME/license.txt, which only
+# works for a licence bound at /licence/license.txt; keep the one found in step 1.
+[[ -n "${_lic}" ]] && export FS_LICENSE="${_lic}"
 
-# SUBJECTS_DIR defaults to the bind point rather than anywhere inside the
-# image, so recon-all output lands on the user's filesystem.
-export SUBJECTS_DIR="${SUBJECTS_DIR:-/data}"
+# SUBJECTS_DIR is the bind point rather than anywhere inside the image, so
+# recon-all output lands on the user's filesystem (KUL_VBG.sh passes its own
+# -sd for its runs anyway).
+export SUBJECTS_DIR=/data
 
 ###############################################################################
 # 3. Writable /tmp
@@ -168,6 +214,9 @@ if [[ -n "${TMPDIR:-}" ]] && ! { [[ -d "${TMPDIR}" ]] && [[ -w "${TMPDIR}" ]]; }
     echo "NOTE: TMPDIR=${TMPDIR} is not usable inside the container; using /tmp" >&2
     export TMPDIR=/tmp
 fi
+# matplotlib (QC, FastSurfer) otherwise warns that its cache dir is not writable
+export MPLCONFIGDIR="${TMPDIR:-/tmp}/kul_vbg_mpl_$(id -u)"
+mkdir -p "${MPLCONFIGDIR}" 2>/dev/null || true
 
 ###############################################################################
 # 4. GPU visibility — informational only
@@ -192,12 +241,19 @@ if [[ $# -eq 0 ]]; then
     exec KUL_VBG.sh -h
 fi
 
-# Bare `bash`/`sh` gets an interactive login shell so /etc/profile.d is picked
-# up; anything else runs directly with the environment set above.
+# `bash`/`sh` gets a shell that reads the CONTAINER's /etc/profile (and through
+# it /etc/profile.d) but never ~/.profile or ~/.bashrc: Apptainer binds the
+# user's home, and those files typically re-add host paths (~/.local/bin, conda,
+# site tool trees) in front of or next to the container's. The environment set
+# above is already complete, so `bash -c ...` needs no profile at all.
+# Anything else runs directly with that environment.
 case "$1" in
     bash|sh|/bin/bash|/bin/sh)
         shift
-        exec /bin/bash --login "$@"
+        if [[ $# -eq 0 ]]; then
+            exec /bin/bash --noprofile --rcfile /etc/profile -i
+        fi
+        exec /bin/bash --noprofile --norc "$@"
         ;;
 esac
 

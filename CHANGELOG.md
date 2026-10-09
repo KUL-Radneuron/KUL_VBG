@@ -25,6 +25,26 @@ subject with a shared `-o`/`-m`: before, both runs used `sub-dlbs1007` and wave 
 exited with "You are trying to re-run an existing subject"; after, they wrote
 `sub-dlbs1007_ses-wave1` and `sub-dlbs1007_ses-wave2`.
 
+### KUL_VBG.sh — `-P 4` (SynthSeg) never finished
+The SynthSeg block re-inserts the lesion (label 99) using
+`<prefix>_brain_mask_cleaned_minL_conn.nii.gz` and `<prefix>_L_mask_reori_scaled99.nii.gz`,
+but both were only made in the recon-all post-processing block, which `-P 4` skips
+("SynthSeg has no surfaces"). Every `-P 4` run therefore aborted in its last step
+(`fslmaths … -mas`: "No image files match", exit 134) after ~1 h 45 min of
+processing. The block now makes the two inputs when missing, and the re-insertion
+is no longer nested inside the "SynthSeg already done" check, so re-running a
+failed subject completes it in seconds. `mri_synthseg` also gets `--keepgeom`:
+without it SynthSeg resamples to 1 mm, and the T1-space masks would not fit for
+any T1 that is not 1 mm isotropic. Verified on two DLBS waves: both finish, label
+99 has exactly the mask's voxel count, parcellation on the T1 grid.
+
+### KUL_VBG.sh — the QC report found none of a `-s` run's files
+`KUL_VBG_QC.py` was called with `-s ${subj}` and `-o ${str_op}`. With `-s` the files
+are prefixed `<sub>_ses-<ses>`, so every lookup missed ("no lesion mask found —
+cannot compute metrics"); and `${str_op}` is a file prefix, not the output
+directory, so the final fill was missed in every run. Now `-s ${subj}${ses_long}`
+and `-o ${output_d}`: 12 of 13 inputs found (was 0).
+
 ### Docker/build.sh — a complete `docker save` archive was rejected as truncated
 The completeness check required one blob per layer, but identical layers (here the
 empty layer `sha256:5f70bf18…`, three times) are stored once. A complete archive
@@ -37,11 +57,37 @@ now counts distinct layer digests; the archive route then verified every layer.
 and a changed ARG invalidates the cache of every later `RUN` in that stage. They are
 now declared just above the KUL_VBG clone, so a bump only redoes the clone onwards.
 
-### Docker/entrypoint.sh — an inherited host `TMPDIR` broke recon-all
-Apptainer passes the host environment in, so a host `TMPDIR` that does not exist in
-the container made `mktemp` fail and recon-all die in `rca-config2csh`. The
-entrypoint now falls back to `/tmp` (already checked writable) and says so.
-`--cleanenv` avoids this and similar leaks (e.g. `XDG_CACHE_HOME`) altogether.
+### Docker/entrypoint.sh — the host environment leaked into Apptainer runs
+Apptainer merges the host environment into the container by default. On a
+neuroimaging host that broke VBG twice, without `--cleanenv`:
+
+- a host `TMPDIR` that does not exist in the container made `mktemp` fail and
+  recon-all die in `rca-config2csh`;
+- a host `FSL_DIR` survived, and sourcing `SetUpFreeSurfer.sh` (which copies
+  `FSL_DIR` into `FSLDIR` unless `FS_OVERRIDE=1`) undid the entrypoint's
+  `FSLDIR=/opt/fsl`; ~30 min into VBG, `fslswapdim` called the host's `fslval`
+  and exited 127 — both sessions of the test subject failed there.
+
+An audit (`printenv` inside the SIF with and without `--cleanenv`) found the same
+pattern for `FSL_BIN`, `MINC_*`, `MNI_*`, `PERL5LIB`, `FUNCTIONALS_DIR` (host
+FreeSurfer MNI tools, also put on `PATH`) and `PYTHONPATH` (host MRtrix3 modules,
+imported by every python in the image); `LD_LIBRARY_PATH`/`LD_PRELOAD` from module
+systems would be worse still. The entrypoint now:
+
+- drops host variables in those families (FSL, FreeSurfer, MINC/MNI, Perl,
+  python, conda, linker, ANTs/ITK, MRtrix, `LOCPATH`, caches) before setting the
+  image's own, including `FSLTCLSH`, `FSLWISH`, `FSLMULTIFILEQUIT`, `VBG_PYENV`,
+  which were not pinned before; `KUL_VBG_KEEP_HOST_ENV=1` disables this;
+- sources `SetUpFreeSurfer.sh` with `FS_OVERRIDE=1`, re-asserts `FSLDIR` and the
+  licence found earlier, then sets `FS_OVERRIDE=0` so later login shells keep it;
+- sets `PYTHONNOUSERSITE=1` (no packages from the bound `~/.local`), a writable
+  `MPLCONFIGDIR`, and falls back to `/tmp` for an unusable `TMPDIR`;
+- starts `bash`/`sh` without reading the host's `~/.profile`/`~/.bashrc` (they
+  re-added `~/.local/bin`, conda and site tool trees to `PATH`).
+
+Verified: with the full host environment the tool variables inside the SIF now
+match a `--cleanenv` run exactly, `fslswapdim` succeeds, licences bound at either
+`/licence/license.txt` or `/license/license.txt` are kept, and Docker is unchanged.
 
 ## Unreleased (2026-09-28d — the SIF published the builder's own filesystem layout)
 

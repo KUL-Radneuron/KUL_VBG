@@ -356,7 +356,14 @@ which never reads a layer blob."
     done
 
     if [[ ${_need_flatten} -eq 0 ]]; then
-        if "${APPTAINER_BIN}" build --force "${SIF_PATH}" "docker-archive://${_archive}"; then
+        # Build from the archive's own directory with a RELATIVE docker-archive://
+        # source: apptainer records the source as the label
+        # org.label-schema.usage.singularity.deffile.from, so an absolute path
+        # publishes the builder's drive layout (same leak the flatten route
+        # avoids with `From: sandbox`). The SIF path is made absolute first.
+        _sif_abs="$(cd "$(dirname "${SIF_PATH}")" && pwd)/$(basename "${SIF_PATH}")"
+        if ( cd "$(dirname "${_archive}")" \
+             && "${APPTAINER_BIN}" build --force "${_sif_abs}" "docker-archive://$(basename "${_archive}")" ); then
             rm -f "${_archive}"
         else
             rm -f "${_archive}"

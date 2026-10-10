@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased (2026-10-10 — the archive route published the build tarball's path)
+
+### Docker/build.sh — absolute `docker-archive://` source leaked into the SIF
+With the false "truncated" rejection fixed, conversions take the archive route
+again, and `apptainer inspect` on the result showed
+`org.label-schema.usage.singularity.deffile.from: /media/ra/Data2/KUL_VBG_2.0.docker.tar`:
+the same builder-path leak the 2026-09-28d entry fixed for the flatten route,
+which was the only route in use then. The archive route now runs
+`apptainer build` from the tarball's directory with a relative
+`docker-archive://` source (the SIF path is made absolute first); the label is
+now `KUL_VBG_2.0.docker.tar`.
+
 ## Unreleased (2026-10-09 — every BIDS session was written out as ses-01)
 
 ### KUL_VBG.sh — `-b -s <ses>` named all outputs `_ses-01`
